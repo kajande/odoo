@@ -1,0 +1,18 @@
+services:
+  odoo:
+    build: .
+    ports:
+      - "8069:8069"
+    environment:
+    - DB_HOST=ep-bold-math-a4ejdevx-pooler.us-east-1.aws.neon.tech
+    - DB_PORT=5432
+    - DB_USER=neondb_owner
+    - DB_PASSWORD=npg_QuxCs0iaD8MR
+    - DB_NAME=neondb
+    volumes:
+      - odoo-web-data:/var/lib/odoo
+      - ./config:/etc/odoo
+      - ./addons:/mnt/extra-addons
+
+volumes:
+  odoo-web-data:
