@@ -18,4 +18,4 @@ COPY --chown=odoo:odoo ./addons /mnt/extra-addons
 # Switch to existing odoo user
 USER odoo
 
-CMD ["odoo", "-c", "/etc/odoo/odoo.conf"]
+CMD ["odoo", "-c", "/etc/odoo/odoo.conf", "-i", "base"]
