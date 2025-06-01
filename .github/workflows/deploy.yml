@@ -23,5 +23,5 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_IP }} << EOF
             cd ${{ secrets.ODOO_DIR }}
             git pull origin deploy
-            sudo docker restart odoo_odoo_1
+            docker-compose up --build
           EOF
