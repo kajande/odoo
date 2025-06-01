@@ -20,8 +20,15 @@ jobs:
 
       - name: Deploy to server
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_IP }} << EOF
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_IP }} << 'EOF'
+            set -e
             cd ${{ secrets.ODOO_DIR }}
             git pull origin deploy
-            docker-compose up --build
+
+            echo "Stopping and removing existing containers, images, and volumes..."
+            docker-compose down -v --remove-orphans
+            docker system prune -af --volumes
+
+            echo "Rebuilding and starting containers..."
+            docker-compose up --build -d
           EOF
