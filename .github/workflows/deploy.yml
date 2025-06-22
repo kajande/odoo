@@ -1,27 +1,94 @@
-name: Deploy Odoo
+name: Odoo Infra & Deploy
 
 on:
   push:
     branches:
       - deploy
 
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Terraform action'
+        required: true
+        default: apply
+        type: choice
+        options:
+          - apply
+          - destroy
+
 jobs:
-  deploy:
+  terraform-provision:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     runs-on: ubuntu-latest
-
+    outputs:
+      droplet_ip: ${{ steps.output_droplet_ip.outputs.droplet_ip }}
     steps:
-      - name: Checkout repository
+      - name: Checkout repo with submodules
         uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
-      - name: Set up SSH key
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve -var "do_token=${{ secrets.DO_TOKEN }}"
+
+      - id: output_droplet_ip
+        working-directory: ./terraform
+        run: echo "::set-output name=droplet_ip::$(terraform output -raw droplet_ip)"
+
+  deploy-odoo:
+    needs: terraform-provision
+    if: github.event_name == 'push' && github.ref == 'refs/heads/deploy'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo with submodules
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Setup SSH
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY }}
 
       - name: Deploy to server
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_IP }} << EOF
-            cd ${{ secrets.ODOO_DIR }}
+          ssh -o StrictHostKeyChecking=no root@${{ needs.terraform-provision.outputs.droplet_ip }} << 'EOF'
+            set -e
+            cd /home/ordo
             git pull origin deploy
-            sudo docker restart odoo_odoo_1
+            docker-compose down -v --remove-orphans
+            docker system prune -af --volumes
+            docker-compose up --build -d
           EOF
+
+  terraform-destroy:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo with submodules
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Terraform Destroy
+        working-directory: ./terraform
+        run: terraform destroy -auto-approve -var "do_token=${{ secrets.DO_TOKEN }}"

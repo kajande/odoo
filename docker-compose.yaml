@@ -1,20 +1,18 @@
 services:
-  db:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: odoo18
-      POSTGRES_USER: odoo
-      POSTGRES_PASSWORD: odoo
-
   odoo:
     build: .
-    depends_on:
-      - db
     ports:
       - "8069:8069"
     environment:
-      - DB_HOST=db
+      - DB_HOST=aws-0-eu-central-1.pooler.supabase.com
       - DB_PORT=5432
-      - DB_USER=odoo
-      - DB_PASSWORD=odoo
-      - DB_NAME=odoo18
+      - DB_USER=postgres.krfhkdvmwcltgtsvyhoa
+      - DB_PASSWORD=#$MM*vfCwN75T-Z
+      - DB_NAME=postgres
+    volumes:
+      - odoo-web-data:/var/lib/odoo
+      - ./config:/etc/odoo
+      - ./addons:/mnt/extra-addons
+
+volumes:
+  odoo-web-data:
