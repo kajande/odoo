@@ -87,7 +87,6 @@ jobs:
         id: get-ip
         run: |
           if [ -f droplet_ip.txt ]; then
-            # Extract only IP address (first field)
             ip=$(grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' droplet_ip.txt | head -n1)
             echo "Found IP in artifact: $ip"
           else
@@ -106,12 +105,22 @@ jobs:
         run: |
           echo "Deploying to ${{ steps.get-ip.outputs.ip }}"
           ssh -o StrictHostKeyChecking=no root@${{ steps.get-ip.outputs.ip }} << 'EOF'
-            set -e
+            set -ex
+            # Ensure Docker is running
+            if ! systemctl is-active --quiet docker; then
+              systemctl start docker
+            fi
+            
             cd /home/odoo
+            git fetch origin
+            git checkout main
             git pull origin main
+            
+            # Clean up and rebuild
             docker-compose down -v --remove-orphans || true
             docker system prune -af --volumes || true
-            docker-compose up --build -d
+            docker-compose build --no-cache
+            docker-compose up -d
           EOF
 
   terraform-destroy:

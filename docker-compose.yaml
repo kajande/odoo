@@ -4,10 +4,10 @@ services:
     ports:
       - "8069:8069"
     environment:
-      - DB_HOST=aws-0-eu-central-1.pooler.supabase.com
+      - DB_HOST=aws-0-eu-west-3.pooler.supabase.com
       - DB_PORT=5432
-      - DB_USER=postgres.krfhkdvmwcltgtsvyhoa
-      - DB_PASSWORD=#$MM*vfCwN75T-Z
+      - DB_USER=postgres.vfdizcvixgltxcqvmjyi
+      - DB_PASSWORD=SEzd9pesVQhJ$M-
       - DB_NAME=postgres
     volumes:
       - odoo-web-data:/var/lib/odoo
