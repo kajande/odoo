@@ -89,8 +89,9 @@ jobs:
 
       - name: Deploy to Odoo Droplet
         run: |
-          echo "Deploying to ${{ steps.set-ip.outputs.ip }}"
-          ssh -o StrictHostKeyChecking=no root@${{ steps.set-ip.outputs.ip }} << 'EOF'
+          IP_ADDRESS="${{ steps.set-ip.outputs.ip }}"
+          echo "Deploying to $IP_ADDRESS"
+          ssh -o StrictHostKeyChecking=no root@$IP_ADDRESS << 'EOF'
             set -ex
             if ! systemctl is-active --quiet docker; then
               systemctl start docker
@@ -126,19 +127,23 @@ jobs:
         id: get-ip
         run: |
           echo "Fetching IP from DigitalOcean API..."
+          # FIX: Only get the first public IP address
           ip=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
             "https://api.digitalocean.com/v2/droplets" | \
-            jq -r --arg name "${{ secrets.DROPLET_NAME }}" '.droplets[] | select(.name==$name) | .networks.v4[] | select(.type=="public") | .ip_address')
+            jq -r --arg name "${{ secrets.DROPLET_NAME }}" '.droplets[] | select(.name==$name) | .networks.v4[] | select(.type=="public") | .ip_address' | head -n1)
+          
           if [ -z "$ip" ]; then
             echo "❌ Failed to fetch IP from DigitalOcean API"
             exit 1
           fi
+          echo "Public IP address: '$ip'"
           echo "ip=$ip" >> $GITHUB_OUTPUT
 
       - name: Deploy to Odoo Droplet
         run: |
-          echo "Deploying to ${{ steps.get-ip.outputs.ip }}"
-          ssh -o StrictHostKeyChecking=no root@${{ steps.get-ip.outputs.ip }} << 'EOF'
+          IP_ADDRESS="${{ steps.get-ip.outputs.ip }}"
+          echo "Deploying to $IP_ADDRESS"
+          ssh -o StrictHostKeyChecking=no root@$IP_ADDRESS << 'EOF'
             set -ex
             if ! systemctl is-active --quiet docker; then
               systemctl start docker
