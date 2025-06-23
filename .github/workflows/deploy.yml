@@ -20,16 +20,14 @@ jobs:
   terraform-provision:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     runs-on: ubuntu-latest
-    outputs:
-      droplet_ip: ${{ steps.output_droplet_ip.outputs.droplet_ip }}
     steps:
-      - name: Checkout repo with submodules
+      - name: Checkout repo
         uses: actions/checkout@v3
         with:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
 
-      - name: Setup SSH agent with private key
+      - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -47,18 +45,27 @@ jobs:
         working-directory: ./terraform
         run: terraform apply -auto-approve -var "do_token=${{ secrets.DO_TOKEN }}" -var "ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}" -var "ssh_private_key=${{ secrets.SSH_PRIVATE_KEY }}"
 
-      - id: output_droplet_ip
+      - name: Save droplet IP to file
         working-directory: ./terraform
-        run: echo "::set-output name=droplet_ip::$(terraform output -raw droplet_ip)"
+        env:
+          TERRAFORM_CLI_NO_WRAPPER: true
+        run: terraform output -raw droplet_ip > droplet_ip.txt
+
+      - name: Upload IP as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: droplet-ip
+          path: ./terraform/droplet_ip.txt
+          retention-days: 1
 
   deploy-odoo:
     runs-on: ubuntu-latest
     needs: [terraform-provision]
     if: |
-      github.event_name == 'push' && github.ref == 'refs/heads/main' ||
-      github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply' ||
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - name: Checkout repo with submodules
+      - name: Checkout repo
         uses: actions/checkout@v3
         with:
           submodules: recursive
@@ -69,18 +76,36 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Get Droplet IP from Terraform Output (if available)
+      - name: Try to download droplet IP artifact
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: droplet-ip
+          path: .
+
+      - name: Determine Droplet IP (artifact or DO API)
         id: get-ip
         run: |
-          if [ -f ./terraform/terraform.tfstate ]; then
-            echo "droplet_ip=$(jq -r '.outputs.droplet_ip.value' ./terraform/terraform.tfstate)" >> $GITHUB_OUTPUT
+          if [ -f droplet_ip.txt ]; then
+            # Extract only IP address (first field)
+            ip=$(grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' droplet_ip.txt | head -n1)
+            echo "Found IP in artifact: $ip"
           else
-            echo "No terraform state found."
+            echo "Artifact not found, using DigitalOcean API..."
+            ip=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
+              "https://api.digitalocean.com/v2/droplets" | \
+              jq -r --arg name "${{ secrets.DROPLET_NAME }}" '.droplets[] | select(.name==$name) | .networks.v4[] | select(.type=="public") | .ip_address')
+            if [ -z "$ip" ]; then
+              echo "❌ Failed to fetch IP from DigitalOcean API"
+              exit 1
+            fi
           fi
+          echo "ip=$ip" >> $GITHUB_OUTPUT
 
-      - name: Deploy to server
+      - name: Deploy to Odoo Droplet
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ steps.get-ip.outputs.droplet_ip }} << 'EOF'
+          echo "Deploying to ${{ steps.get-ip.outputs.ip }}"
+          ssh -o StrictHostKeyChecking=no root@${{ steps.get-ip.outputs.ip }} << 'EOF'
             set -e
             cd /home/odoo
             git pull origin main
@@ -93,13 +118,13 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo with submodules
+      - name: Checkout repo
         uses: actions/checkout@v3
         with:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
 
-      - name: Setup SSH agent with private key
+      - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
