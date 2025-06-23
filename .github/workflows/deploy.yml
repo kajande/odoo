@@ -51,6 +51,32 @@ jobs:
         working-directory: ./terraform
         run: echo "::set-output name=droplet_ip::$(terraform output -raw droplet_ip)"
 
+  deploy-odoo:
+    needs: terraform-provision
+    if: github.event_name == 'push' && github.ref == 'refs/heads/deploy'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo with submodules
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to server
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ needs.terraform-provision.outputs.droplet_ip }} << 'EOF'
+            set -e
+            cd /home/odoo
+            git pull origin deploy
+            docker-compose down -v --remove-orphans || true
+            docker system prune -af --volumes || true
+            docker-compose up --build -d
+          EOF
 
   terraform-destroy:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
@@ -60,6 +86,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: recursive
+          token: ${{ secrets.GIT_TOKEN }}
 
       - name: Setup SSH agent with private key
         uses: webfactory/ssh-agent@v0.5.4
