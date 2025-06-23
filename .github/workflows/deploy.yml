@@ -61,9 +61,7 @@ jobs:
   deploy-odoo:
     runs-on: ubuntu-latest
     needs: [terraform-provision]
-    if: |
-      github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply' ||
-      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -76,37 +74,24 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Try to download droplet IP artifact
-        continue-on-error: true
+      - name: Download droplet IP artifact
         uses: actions/download-artifact@v4
         with:
           name: droplet-ip
           path: .
 
-      - name: Determine Droplet IP (artifact or DO API)
-        id: get-ip
+      - name: Read droplet IP
+        id: set-ip
         run: |
-          if [ -f droplet_ip.txt ]; then
-            ip=$(grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' droplet_ip.txt | head -n1)
-            echo "Found IP in artifact: $ip"
-          else
-            echo "Artifact not found, using DigitalOcean API..."
-            ip=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
-              "https://api.digitalocean.com/v2/droplets" | \
-              jq -r --arg name "${{ secrets.DROPLET_NAME }}" '.droplets[] | select(.name==$name) | .networks.v4[] | select(.type=="public") | .ip_address')
-            if [ -z "$ip" ]; then
-              echo "❌ Failed to fetch IP from DigitalOcean API"
-              exit 1
-            fi
-          fi
+          ip=$(cat droplet_ip.txt)
+          echo "Using IP from artifact: $ip"
           echo "ip=$ip" >> $GITHUB_OUTPUT
 
       - name: Deploy to Odoo Droplet
         run: |
-          echo "Deploying to ${{ steps.get-ip.outputs.ip }}"
-          ssh -o StrictHostKeyChecking=no root@${{ steps.get-ip.outputs.ip }} << 'EOF'
+          echo "Deploying to ${{ steps.set-ip.outputs.ip }}"
+          ssh -o StrictHostKeyChecking=no root@${{ steps.set-ip.outputs.ip }} << 'EOF'
             set -ex
-            # Ensure Docker is running
             if ! systemctl is-active --quiet docker; then
               systemctl start docker
             fi
@@ -116,7 +101,54 @@ jobs:
             git checkout main
             git pull origin main
             
-            # Clean up and rebuild
+            docker-compose down -v --remove-orphans || true
+            docker system prune -af --volumes || true
+            docker-compose build --no-cache
+            docker-compose up -d
+          EOF
+
+  deploy-on-push:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/deploy'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Determine Droplet IP via DO API
+        id: get-ip
+        run: |
+          echo "Fetching IP from DigitalOcean API..."
+          ip=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
+            "https://api.digitalocean.com/v2/droplets" | \
+            jq -r --arg name "${{ secrets.DROPLET_NAME }}" '.droplets[] | select(.name==$name) | .networks.v4[] | select(.type=="public") | .ip_address')
+          if [ -z "$ip" ]; then
+            echo "❌ Failed to fetch IP from DigitalOcean API"
+            exit 1
+          fi
+          echo "ip=$ip" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Odoo Droplet
+        run: |
+          echo "Deploying to ${{ steps.get-ip.outputs.ip }}"
+          ssh -o StrictHostKeyChecking=no root@${{ steps.get-ip.outputs.ip }} << 'EOF'
+            set -ex
+            if ! systemctl is-active --quiet docker; then
+              systemctl start docker
+            fi
+            
+            cd /home/odoo
+            git fetch origin
+            git checkout main
+            git pull origin main
+            
             docker-compose down -v --remove-orphans || true
             docker system prune -af --volumes || true
             docker-compose build --no-cache
