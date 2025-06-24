@@ -54,7 +54,6 @@ jobs:
       - name: Save droplet IP to inventory file
         working-directory: ./terraform
         run: |
-          terraform output -raw droplet_ip > ../ansible/inventory/production.ini
           echo "[odoo]" > ../ansible/inventory/production.ini
           terraform output -raw droplet_ip >> ../ansible/inventory/production.ini
 
@@ -63,6 +62,13 @@ jobs:
         with:
           name: ansible-inventory
           path: ansible/inventory/production.ini
+          retention-days: 1
+
+      - name: Upload terraform state
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-state
+          path: ./terraform/terraform.tfstate
           retention-days: 1
 
   ansible-deploy:
@@ -99,12 +105,6 @@ jobs:
         run: |
           pip install ansible
           ansible-galaxy collection install -r ansible/requirements.yml
-
-      - name: Validate inventory
-        run: |
-          echo "Current working directory: $(pwd)"
-          echo "Inventory file contents:"
-          cat ansible/inventory/production.ini
 
       - name: Run Ansible playbook
         working-directory: ./ansible
@@ -173,9 +173,35 @@ jobs:
         with:
           terraform_version: 1.6.6
 
+      - name: Download Terraform state
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-state
+          path: ./terraform
+
       - name: Terraform Init
         working-directory: ./terraform
         run: terraform init
+
+      - name: Get DigitalOcean Droplet IP (for cleanup)
+        id: get-ip
+        run: |
+          ip=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
+            "https://api.digitalocean.com/v2/droplets?tag_name=odoo" | \
+            jq -r '.droplets[0].networks.v4[] | select(.type=="public") | .ip_address')
+          echo "ip=$ip" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Cleanup Docker containers (if droplet exists)
+        if: steps.get-ip.outputs.ip != ''
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ steps.get-ip.outputs.ip }} << 'EOF'
+            set -ex
+            cd /home/odoo || exit 0
+            docker-compose down -v --remove-orphans || true
+            docker system prune -af --volumes || true
+          EOF
+        continue-on-error: true
 
       - name: Terraform Destroy
         working-directory: ./terraform
