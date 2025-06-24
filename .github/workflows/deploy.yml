@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-
   workflow_dispatch:
     inputs:
       action:
@@ -31,9 +30,6 @@ jobs:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
 
-      - name: Checkout Ansible submodule
-        run: git submodule update --init --recursive
-
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.5.4
         with:
@@ -52,22 +48,22 @@ jobs:
         working-directory: ./terraform
         run: terraform apply -auto-approve -var "do_token=${{ secrets.DO_TOKEN }}" -var "ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}" -var "ssh_private_key=${{ secrets.SSH_PRIVATE_KEY }}"
 
-      - name: Save droplet IP to file
+      - name: Create Ansible inventory directory
+        run: mkdir -p ansible/inventory
+
+      - name: Save droplet IP to inventory file
         working-directory: ./terraform
-        run: terraform output -raw droplet_ip > ../ansible/inventory/production.ini
+        run: |
+          terraform output -raw droplet_ip > ../ansible/inventory/production.ini
+          echo "[odoo]" > ../ansible/inventory/production.ini
+          terraform output -raw droplet_ip >> ../ansible/inventory/production.ini
 
-      - name: Upload terraform state
+      - name: Upload inventory as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-state
-          path: ./terraform
+          name: ansible-inventory
+          path: ansible/inventory/production.ini
           retention-days: 1
-
-      - name: Upload IP as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: droplet-ip
-          path: ./terraform/droplet_ip.txt
 
   ansible-deploy:
     runs-on: ubuntu-latest
@@ -83,16 +79,16 @@ jobs:
       - name: Checkout Ansible submodule
         run: git submodule update --init --recursive
 
+      - name: Download inventory artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ansible-inventory
+          path: ansible/inventory/
+
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Download droplet IP artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: droplet-ip
-          path: ./ansible/inventory/
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -104,12 +100,15 @@ jobs:
           pip install ansible
           ansible-galaxy collection install -r ansible/requirements.yml
 
-      - name: Validate Ansible inventory
-        run: cat ansible/inventory/production.ini
+      - name: Validate inventory
+        run: |
+          echo "Current working directory: $(pwd)"
+          echo "Inventory file contents:"
+          cat ansible/inventory/production.ini
 
       - name: Run Ansible playbook
         working-directory: ./ansible
-        run: ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml --user root --extra-vars "project_dir=/home/odoo"
+        run: ansible-playbook -i ../ansible/inventory/production.ini playbooks/deploy-odoo.yml --user root
 
   deploy-on-push:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -132,10 +131,10 @@ jobs:
       - name: Determine Droplet IP
         id: get-ip
         run: |
-          echo "Fetching IP from DigitalOcean API..."
           ip=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
             "https://api.digitalocean.com/v2/droplets?tag_name=odoo" | \
             jq -r '.droplets[0].networks.v4[] | select(.type=="public") | .ip_address')
+          mkdir -p ansible/inventory
           echo "[odoo]" > ansible/inventory/production.ini
           echo "$ip" >> ansible/inventory/production.ini
           echo "ip=$ip" >> $GITHUB_OUTPUT
@@ -152,7 +151,7 @@ jobs:
 
       - name: Run Ansible playbook
         working-directory: ./ansible
-        run: ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml --user root --extra-vars "project_dir=/home/odoo"
+        run: ansible-playbook -i ../ansible/inventory/production.ini playbooks/deploy-odoo.yml --user root
 
   terraform-destroy:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
@@ -164,9 +163,6 @@ jobs:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
 
-      - name: Checkout Ansible submodule
-        run: git submodule update --init --recursive
-
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.5.4
         with:
@@ -176,12 +172,6 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.6.6
-
-      - name: Download Terraform state
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-state
-          path: ./terraform
 
       - name: Terraform Init
         working-directory: ./terraform
