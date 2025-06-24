@@ -16,7 +16,7 @@ on:
           - destroy
 
 env:
-  ANSIBLE_FORCE极狐: 1
+  ANSIBLE_FORCE_COLOR: 1
   ANSIBLE_HOST_KEY_CHECKING: false
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main repository
+      - name: Checkout repository
         uses: actions/checkout@v3
         with:
           submodules: recursive
@@ -40,38 +40,45 @@ jobs:
         with:
           terraform_version: 1.6.6
 
-      - name: Terraform Init
+      - name: Generate .auto.tfvars file
         working-directory: ./terraform
+        run: |
+          cat <<EOF > vars.auto.tfvars
+          do_token = "${{ secrets.DO_TOKEN }}"
+          ssh_public_key = <<EOTPUB
+          ${{ secrets.SSH_PUBLIC_KEY }}
+          EOTPUB
+          ssh_private_key = <<EOT
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          EOT
+          EOF
+
+      - name: Terraform Init (Cloud)
+        working-directory: ./terraform
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
         run: terraform init
 
       - name: Terraform Apply
         working-directory: ./terraform
-        run: terraform apply -auto-approve -var "do_token=${{ secrets.DO_TOKEN }}" -var "ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}" -var "ssh_private_key=${{ secrets.SSH_PRIVATE_KEY }}"
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+        run: terraform apply -auto-approve
 
-      - name: Create Ansible inventory directory
-        run: mkdir -p ansible/inventory
-
-      - name: Save droplet IP to inventory file
+      - name: Create Ansible inventory
         working-directory: ./terraform
         run: |
           ip=$(terraform output -raw droplet_ip)
+          mkdir -p ../ansible/inventory
           echo "[odoo]" > ../ansible/inventory/production.ini
           echo "$ip ansible_user=root" >> ../ansible/inventory/production.ini
-          echo "Inventory file:"
           cat ../ansible/inventory/production.ini
 
-      - name: Upload inventory as artifact
+      - name: Upload inventory artifact
         uses: actions/upload-artifact@v4
         with:
           name: ansible-inventory
           path: ansible/inventory/production.ini
-          retention-days: 1
-
-      - name: Upload terraform state
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-state
-          path: ./terraform/terraform.tfstate
           retention-days: 1
 
   ansible-deploy:
@@ -79,16 +86,13 @@ jobs:
     needs: [terraform-provision]
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     steps:
-      - name: Checkout main repository
+      - name: Checkout repository
         uses: actions/checkout@v3
         with:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
 
-      - name: Checkout Ansible submodule
-        run: git submodule update --init --recursive
-
-      - name: Download inventory artifact
+      - name: Download inventory
         uses: actions/download-artifact@v4
         with:
           name: ansible-inventory
@@ -99,21 +103,20 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install Ansible and dependencies
+      - name: Install Ansible + Collections
         run: |
           pip install ansible
           ansible-galaxy collection install -r ansible/requirements.yml
 
-      - name: Run Ansible playbook
+      - name: Run Ansible Playbook
         working-directory: ./ansible
         run: |
-          echo "Current directory: $(pwd)"
-          echo "Inventory file:"
+          echo "Inventory content:"
           cat inventory/production.ini
           ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml
 
@@ -121,14 +124,11 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main repository
+      - name: Checkout repository
         uses: actions/checkout@v3
         with:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
-
-      - name: Checkout Ansible submodule
-        run: git submodule update --init --recursive
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.5.4
@@ -145,32 +145,27 @@ jobs:
           echo "[odoo]" > ansible/inventory/production.ini
           echo "$ip ansible_user=root" >> ansible/inventory/production.ini
           echo "ip=$ip" >> $GITHUB_OUTPUT
-          echo "Inventory file:"
-          cat ansible/inventory/production.ini
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install Ansible and dependencies
+      - name: Install Ansible + Collections
         run: |
           pip install ansible
           ansible-galaxy collection install -r ansible/requirements.yml
 
-      - name: Run Ansible playbook
+      - name: Run Ansible Playbook
         working-directory: ./ansible
         run: |
-          echo "Current directory: $(pwd)"
-          echo "Inventory file:"
-          cat inventory/production.ini
           ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml
 
   terraform-destroy:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main repository
+      - name: Checkout repository
         uses: actions/checkout@v3
         with:
           submodules: recursive
@@ -186,37 +181,27 @@ jobs:
         with:
           terraform_version: 1.6.6
 
-      - name: Download Terraform state
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-state
-          path: ./terraform
-          continue-on-error: true
-
-      - name: Terraform Init
+      - name: Generate .auto.tfvars file
         working-directory: ./terraform
-        run: terraform init
-
-      - name: Get DigitalOcean Droplet IP (for cleanup)
-        id: get-ip
         run: |
-          ip=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
-            "https://api.digitalocean.com/v2/droplets?tag_name=odoo" | \
-            jq -r '.droplets[0].networks.v4[] | select(.type=="public") | .ip_address')
-          echo "ip=$ip" >> $GITHUB_OUTPUT
-        continue-on-error: true
-
-      - name: Cleanup Docker containers (if droplet exists)
-        if: steps.get-ip.outputs.ip != ''
-        run: |
-          ssh -o StrictHostKeyChecking=no root@${{ steps.get-ip.outputs.ip }} << 'EOF'
-            set -ex
-            cd /home/odoo || exit 0
-            docker-compose down -v --remove-orphans || true
-            docker system prune -af --volumes || true
+          cat <<EOF > vars.auto.tfvars
+          do_token = "${{ secrets.DO_TOKEN }}"
+          ssh_public_key = <<EOTPUB
+          ${{ secrets.SSH_PUBLIC_KEY }}
+          EOTPUB
+          ssh_private_key = <<EOT
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          EOT
           EOF
-        continue-on-error: true
+
+      - name: Terraform Init (Cloud)
+        working-directory: ./terraform
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+        run: terraform init
 
       - name: Terraform Destroy
         working-directory: ./terraform
-        run: terraform destroy -auto-approve -var "do_token=${{ secrets.DO_TOKEN }}" -var "ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}" -var "ssh_private_key=${{ secrets.SSH_PRIVATE_KEY }}"
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+        run: terraform destroy -auto-approve
