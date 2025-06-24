@@ -67,6 +67,8 @@ jobs:
 
       - name: Create Ansible inventory
         working-directory: ./terraform
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
         run: |
           ip=$(terraform output -raw droplet_ip)
           mkdir -p ../ansible/inventory
