@@ -16,16 +16,23 @@ on:
           - apply
           - destroy
 
+env:
+  ANSIBLE_FORCE_COLOR: 1
+  ANSIBLE_HOST_KEY_CHECKING: false
+
 jobs:
   terraform-provision:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
+      - name: Checkout main repository
         uses: actions/checkout@v3
         with:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Checkout Ansible submodule
+        run: git submodule update --init --recursive
 
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.5.4
@@ -47,9 +54,7 @@ jobs:
 
       - name: Save droplet IP to file
         working-directory: ./terraform
-        env:
-          TERRAFORM_CLI_NO_WRAPPER: true
-        run: terraform output -raw droplet_ip > droplet_ip.txt
+        run: terraform output -raw droplet_ip > ../ansible/inventory/production.ini
 
       - name: Upload terraform state
         uses: actions/upload-artifact@v4
@@ -63,18 +68,20 @@ jobs:
         with:
           name: droplet-ip
           path: ./terraform/droplet_ip.txt
-          retention-days: 1
 
-  deploy-odoo:
+  ansible-deploy:
     runs-on: ubuntu-latest
     needs: [terraform-provision]
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     steps:
-      - name: Checkout repo
+      - name: Checkout main repository
         uses: actions/checkout@v3
         with:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Checkout Ansible submodule
+        run: git submodule update --init --recursive
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.5.4
@@ -85,96 +92,80 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: droplet-ip
-          path: .
+          path: ./ansible/inventory/
 
-      - name: Read droplet IP
-        id: set-ip
-        run: |
-          ip=$(cat droplet_ip.txt)
-          echo "Using IP from artifact: $ip"
-          echo "ip=$ip" >> $GITHUB_OUTPUT
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-      - name: Deploy to Odoo Droplet
+      - name: Install Ansible and dependencies
         run: |
-          IP_ADDRESS="${{ steps.set-ip.outputs.ip }}"
-          echo "Deploying to $IP_ADDRESS"
-          ssh -o StrictHostKeyChecking=no root@$IP_ADDRESS << 'EOF'
-            set -ex
-            if ! systemctl is-active --quiet docker; then
-              systemctl start docker
-            fi
-            
-            cd /home/odoo
-            git fetch origin
-            git checkout main
-            git pull origin main
-            
-            docker-compose down -v --remove-orphans || true
-            docker system prune -af --volumes || true
-            docker-compose build --no-cache
-            docker-compose up -d
-          EOF
+          pip install ansible
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Validate Ansible inventory
+        run: cat ansible/inventory/production.ini
+
+      - name: Run Ansible playbook
+        working-directory: ./ansible
+        run: ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml --user root --extra-vars "project_dir=/home/odoo"
 
   deploy-on-push:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/deploy'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
+      - name: Checkout main repository
         uses: actions/checkout@v3
         with:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Checkout Ansible submodule
+        run: git submodule update --init --recursive
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Determine Droplet IP via DO API
+      - name: Determine Droplet IP
         id: get-ip
         run: |
           echo "Fetching IP from DigitalOcean API..."
           ip=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
-            "https://api.digitalocean.com/v2/droplets" | \
-            jq -r --arg name "${{ secrets.DROPLET_NAME }}" '.droplets[] | select(.name==$name) | .networks.v4[] | select(.type=="public") | .ip_address' | head -n1)
-          
-          if [ -z "$ip" ]; then
-            echo "❌ Failed to fetch IP from DigitalOcean API"
-            exit 1
-          fi
-          echo "Public IP address: '$ip'"
+            "https://api.digitalocean.com/v2/droplets?tag_name=odoo" | \
+            jq -r '.droplets[0].networks.v4[] | select(.type=="public") | .ip_address')
+          echo "[odoo]" > ansible/inventory/production.ini
+          echo "$ip" >> ansible/inventory/production.ini
           echo "ip=$ip" >> $GITHUB_OUTPUT
 
-      - name: Deploy to Odoo Droplet
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Ansible and dependencies
         run: |
-          IP_ADDRESS="${{ steps.get-ip.outputs.ip }}"
-          echo "Deploying to $IP_ADDRESS"
-          ssh -o StrictHostKeyChecking=no root@$IP_ADDRESS << 'EOF'
-            set -ex
-            if ! systemctl is-active --quiet docker; then
-              systemctl start docker
-            fi
-            
-            cd /home/odoo
-            git fetch origin
-            git checkout main
-            git pull origin main
-            
-            docker-compose down -v --remove-orphans || true
-            docker system prune -af --volumes || true
-            docker-compose build --no-cache
-            docker-compose up -d
-          EOF
+          pip install ansible
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Run Ansible playbook
+        working-directory: ./ansible
+        run: ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml --user root --extra-vars "project_dir=/home/odoo"
 
   terraform-destroy:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
+      - name: Checkout main repository
         uses: actions/checkout@v3
         with:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Checkout Ansible submodule
+        run: git submodule update --init --recursive
 
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.5.4
