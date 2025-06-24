@@ -121,10 +121,13 @@ jobs:
       - name: Run Ansible Playbook
         working-directory: ./ansible
         run: |
-          echo "Final inventory content:"
+          echo "Running playbook with inventory:"
           cat inventory/production.ini
           echo ""
-          ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml
+          ANSIBLE_FORCE_COLOR=1 ansible-playbook \
+            -i inventory/production.ini \
+            playbooks/deploy-odoo.yml \
+            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30"
 
   deploy-on-push:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -166,10 +169,13 @@ jobs:
       - name: Run Ansible Playbook
         working-directory: ./ansible
         run: |
-          echo "Final inventory content:"
+          echo "Running playbook with inventory:"
           cat inventory/production.ini
           echo ""
-          ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml
+          ANSIBLE_FORCE_COLOR=1 ansible-playbook \
+            -i inventory/production.ini \
+            playbooks/deploy-odoo.yml \
+            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30"
 
   terraform-destroy:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
