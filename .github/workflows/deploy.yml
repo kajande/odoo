@@ -16,7 +16,7 @@ on:
           - destroy
 
 env:
-  ANSIBLE_FORCE_COLOR: 1
+  ANSIBLE_FORCE极狐: 1
   ANSIBLE_HOST_KEY_CHECKING: false
 
 jobs:
@@ -54,8 +54,11 @@ jobs:
       - name: Save droplet IP to inventory file
         working-directory: ./terraform
         run: |
+          ip=$(terraform output -raw droplet_ip)
           echo "[odoo]" > ../ansible/inventory/production.ini
-          terraform output -raw droplet_ip >> ../ansible/inventory/production.ini
+          echo "$ip ansible_user=root" >> ../ansible/inventory/production.ini
+          echo "Inventory file:"
+          cat ../ansible/inventory/production.ini
 
       - name: Upload inventory as artifact
         uses: actions/upload-artifact@v4
@@ -108,7 +111,11 @@ jobs:
 
       - name: Run Ansible playbook
         working-directory: ./ansible
-        run: ansible-playbook -i ../ansible/inventory/production.ini playbooks/deploy-odoo.yml --user root
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Inventory file:"
+          cat inventory/production.ini
+          ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml
 
   deploy-on-push:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -136,8 +143,10 @@ jobs:
             jq -r '.droplets[0].networks.v4[] | select(.type=="public") | .ip_address')
           mkdir -p ansible/inventory
           echo "[odoo]" > ansible/inventory/production.ini
-          echo "$ip" >> ansible/inventory/production.ini
+          echo "$ip ansible_user=root" >> ansible/inventory/production.ini
           echo "ip=$ip" >> $GITHUB_OUTPUT
+          echo "Inventory file:"
+          cat ansible/inventory/production.ini
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -151,7 +160,11 @@ jobs:
 
       - name: Run Ansible playbook
         working-directory: ./ansible
-        run: ansible-playbook -i ../ansible/inventory/production.ini playbooks/deploy-odoo.yml --user root
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Inventory file:"
+          cat inventory/production.ini
+          ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml
 
   terraform-destroy:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
@@ -178,6 +191,7 @@ jobs:
         with:
           name: terraform-state
           path: ./terraform
+          continue-on-error: true
 
       - name: Terraform Init
         working-directory: ./terraform
