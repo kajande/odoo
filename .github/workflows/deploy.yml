@@ -71,9 +71,12 @@ jobs:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
         run: |
           ip=$(terraform output -raw droplet_ip)
+          # Strip any non-IP characters
+          clean_ip=$(echo "$ip" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
           mkdir -p ../ansible/inventory
           echo "[odoo]" > ../ansible/inventory/production.ini
-          echo "$ip ansible_user=root" >> ../ansible/inventory/production.ini
+          echo "$clean_ip ansible_user=root" >> ../ansible/inventory/production.ini
+          echo "Generated inventory:"
           cat ../ansible/inventory/production.ini
 
       - name: Upload inventory artifact
@@ -118,8 +121,9 @@ jobs:
       - name: Run Ansible Playbook
         working-directory: ./ansible
         run: |
-          echo "Inventory content:"
+          echo "Final inventory content:"
           cat inventory/production.ini
+          echo ""
           ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml
 
   deploy-on-push:
@@ -143,10 +147,11 @@ jobs:
           ip=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
             "https://api.digitalocean.com/v2/droplets?tag_name=odoo" | \
             jq -r '.droplets[0].networks.v4[] | select(.type=="public") | .ip_address')
+          clean_ip=$(echo "$ip" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
           mkdir -p ansible/inventory
           echo "[odoo]" > ansible/inventory/production.ini
-          echo "$ip ansible_user=root" >> ansible/inventory/production.ini
-          echo "ip=$ip" >> $GITHUB_OUTPUT
+          echo "$clean_ip ansible_user=root" >> ansible/inventory/production.ini
+          echo "ip=$clean_ip" >> $GITHUB_OUTPUT
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -161,6 +166,9 @@ jobs:
       - name: Run Ansible Playbook
         working-directory: ./ansible
         run: |
+          echo "Final inventory content:"
+          cat inventory/production.ini
+          echo ""
           ansible-playbook -i inventory/production.ini playbooks/deploy-odoo.yml
 
   terraform-destroy:
