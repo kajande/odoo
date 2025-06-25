@@ -149,36 +149,43 @@ jobs:
       - name: Determine Droplet IP
         id: get-ip
         run: |
-          ip=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
-            "https://api.digitalocean.com/v2/droplets?tag_name=odoo" | \
-            jq -r '.droplets[0].networks.v4[] | select(.type=="public") | .ip_address')
-          clean_ip=$(echo "$ip" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
+          response=$(curl -s -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
+            "https://api.digitalocean.com/v2/droplets?tag_name=odoo")
+
+          # Get most recent active droplet
+          clean_ip=$(echo $response | \
+            jq -r '[.droplets[] | select(.status=="active")] | sort_by(.created_at) | reverse | .[0].networks.v4[] | select(.type=="public").ip_address' | \
+            head -n1)
+
+          if [ -z "$clean_ip" ]; then
+            echo "::error::No active droplets found with tag 'odoo'"
+            exit 1
+          fi
+
+          # Clear old inventory files
+          rm -f ansible/inventory/*
           mkdir -p ansible/inventory
           echo "[odoo]" > ansible/inventory/production.ini
           echo "$clean_ip ansible_user=root" >> ansible/inventory/production.ini
+          echo "Using IP: $clean_ip"
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install Ansible + Collections
+      - name: Verify SSH connectivity
+        timeout-minutes: 5
         run: |
-          pip install ansible
-          ansible-galaxy collection install -r ansible/requirements.yml
+          ip=$(grep -Eo '[0-9.]+' ansible/inventory/production.ini)
+          echo "Testing SSH connection to $ip"
 
-      - name: Run Update Playbook
-        working-directory: ./ansible
-        env:
-          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
-        run: |
-          echo "Running lightweight update playbook with inventory:"
-          cat inventory/production.ini
-          echo ""
-          ANSIBLE_FORCE_COLOR=1 ansible-playbook \
-            -i inventory/production.ini \
-            playbooks/update-odoo.yml \
-            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30"
+          for i in {1..10}; do
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@$ip exit 2>/dev/null
+            if [ $? -eq 0 ]; then
+              echo "SSH connection successful"
+              exit 0
+            fi
+            echo "SSH attempt $i/10 failed, retrying in 15 seconds..."
+            sleep 15
+          done
+          echo "::error::Failed to establish SSH connection"
+          exit 1
 
   terraform-destroy:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
