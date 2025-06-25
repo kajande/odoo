@@ -156,7 +156,6 @@ jobs:
           mkdir -p ansible/inventory
           echo "[odoo]" > ansible/inventory/production.ini
           echo "$clean_ip ansible_user=root" >> ansible/inventory/production.ini
-          echo "ip=$clean_ip" >> $GITHUB_OUTPUT
 
       - name: Setup Python
         uses: actions/setup-python@v4
