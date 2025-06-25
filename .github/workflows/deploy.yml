@@ -120,6 +120,8 @@ jobs:
 
       - name: Run Ansible Playbook
         working-directory: ./ansible
+        env:
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
         run: |
           echo "Running playbook with inventory:"
           cat inventory/production.ini
@@ -168,6 +170,8 @@ jobs:
 
       - name: Run Ansible Playbook
         working-directory: ./ansible
+        env:
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
         run: |
           echo "Running playbook with inventory:"
           cat inventory/production.ini
