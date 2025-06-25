@@ -167,17 +167,17 @@ jobs:
           pip install ansible
           ansible-galaxy collection install -r ansible/requirements.yml
 
-      - name: Run Ansible Playbook
+      - name: Run Update Playbook
         working-directory: ./ansible
         env:
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
         run: |
-          echo "Running playbook with inventory:"
+          echo "Running lightweight update playbook with inventory:"
           cat inventory/production.ini
           echo ""
           ANSIBLE_FORCE_COLOR=1 ansible-playbook \
             -i inventory/production.ini \
-            playbooks/deploy-odoo.yml \
+            playbooks/update-odoo.yml \
             --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30"
 
   terraform-destroy:
