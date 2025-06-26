@@ -1,0 +1,91 @@
+
+#-> terraform/README.md
+# terraform
+Cloud resources automated provisioning
+
+
+#-> terraform/outputs.tf
+output "droplet_ip" {
+  value = digitalocean_droplet.odoo.ipv4_address
+}
+
+#-> terraform/main.tf
+terraform {
+  required_providers {
+    digitalocean = {
+      source  = "digitalocean/digitalocean"
+      version = "~> 2.0"
+    }
+  }
+
+  backend "remote" {
+    organization = "Kajande"
+
+    workspaces {
+      name = "ordo-infra"
+    }
+  }
+}
+
+provider "digitalocean" {
+  token = var.do_token
+}
+
+resource "digitalocean_ssh_key" "odoox_key" {
+  name       = "odoo-key"
+  public_key = var.ssh_public_key
+}
+
+resource "digitalocean_droplet" "odoo" {
+  image      = var.droplet_image
+  name       = var.droplet_name
+  region     = var.droplet_region
+  size       = var.droplet_size
+  ssh_keys   = [digitalocean_ssh_key.odoox_key.id]
+  tags       = ["odoo"]
+
+  connection {
+    type        = "ssh"
+    user        = "root"
+    private_key = var.ssh_private_key
+    host        = self.ipv4_address
+  }
+}
+
+#-> terraform/variables.tf
+variable "do_token" {
+  description = "DigitalOcean access token"
+  type        = string
+  sensitive   = true
+}
+
+variable "droplet_name" {
+  default     = "odoo-server"
+  description = "Name of the droplet"
+}
+
+variable "droplet_region" {
+  default     = "fra1"
+  description = "Region for deployment"
+}
+
+variable "droplet_size" {
+  default     = "s-2vcpu-4gb"
+  description = "Droplet size"
+}
+
+variable "droplet_image" {
+  default     = "ubuntu-22-04-x64"
+  description = "Image to use for the droplet"
+}
+
+variable "ssh_public_key" {
+  description = "SSH public key string"
+  type        = string
+}
+
+variable "ssh_private_key" {
+  description = "SSH private key as string"
+  type        = string
+  sensitive   = true
+}
