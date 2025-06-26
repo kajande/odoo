@@ -5,3 +5,6 @@
 [submodule "ansible"]
   path = ansible
   url = https://github.com/kajande/ansible.git
+[submodule "addons/cleanup_missing_attachments"]
+	path = addons/cleanup_missing_attachments
+	url = https://github.com/kajande/cleanup_missing_attachments.git
