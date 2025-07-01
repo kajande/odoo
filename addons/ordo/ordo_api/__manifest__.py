@@ -7,6 +7,7 @@
     'data': [
         'data/demo_fastapi_user.xml',
         'data/demo_fastapi_group.xml',
+        'data/fastapi_endpoint.xml',
     ],
     'installable': True,
     'application': False,

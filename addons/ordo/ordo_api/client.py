@@ -2,7 +2,9 @@ import requests
 
 # Replace with your actual bearer token or auth credentials if needed
 AUTH_TOKEN = "your-auth-token"  # Optional
-URL = "http://localhost:8069/ordo/partners"
+server = "http://localhost:8069"
+# server = "https://ordo.kajande.com"
+URL = f"{server}/demo/partners"
 
 headers = {
     "Content-Type": "application/json",
