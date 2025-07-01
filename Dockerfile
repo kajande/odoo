@@ -3,16 +3,19 @@ FROM odoo:18.0
 # Switch to root to install dependencies
 USER root
 
-# Copy requirements BEFORE trying to install them
+# Cache busting: separate COPY for requirements
 COPY ./requirements.txt /tmp/requirements.txt
 
-# Install troubleshooting tools and Python packages
+# Install OS-level dependencies
 RUN apt-get update && \
     apt-get install -y iputils-ping postgresql-client && \
-    pip3 install --break-system-packages --no-cache-dir -r /tmp/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
-# Set permissions for Odoo data
+# Install Python dependencies with cache busting
+RUN --mount=type=cache,target=/root/.cache \
+    pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /tmp/requirements.txt
+
+# Set permissions for custom addons and Odoo data
 RUN mkdir -p /mnt/extra-addons && \
     chown -R odoo:odoo /mnt/extra-addons && \
     chown -R odoo:odoo /var/lib/odoo
@@ -24,5 +27,5 @@ COPY --chown=odoo:odoo ./addons /mnt/extra-addons
 # Switch to odoo user
 USER odoo
 
-# Run Odoo with module installation
+# Run Odoo with initial module install
 CMD ["odoo", "-c", "/etc/odoo/odoo.conf", "-i", "base"]
