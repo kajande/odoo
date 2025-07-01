@@ -25,7 +25,9 @@ services:
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
-      - ./addons:/mnt/extra-addons
+      - ./addons/ordo:/mnt/extra-addons
+      - ./addons/oca/rest-framework:/mnt/oca-rest-framework
+      - ./addons/oca/web-api:/mnt/oca-web-api
 
 volumes:
   odoo-web-data:
