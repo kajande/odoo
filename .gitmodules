@@ -5,6 +5,15 @@
 [submodule "ansible"]
   path = ansible
   url = https://github.com/kajande/ansible.git
+
 [submodule "addons/cleanup_missing_attachments"]
-	path = addons/cleanup_missing_attachments
-	url = https://github.com/kajande/cleanup_missing_attachments.git
+  path = addons/cleanup_missing_attachments
+  url = https://github.com/kajande/cleanup_missing_attachments.git
+
+[submodule "addons/oca/rest-framework"]
+  path = addons/oca/rest-framework
+  url = https://github.com/OCA/rest-framework.git
+
+[submodule "addons/oca/web-api"]
+  path = addons/oca/web-api
+  url = https://github.com/OCA/web-api.git
