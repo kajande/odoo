@@ -5,8 +5,10 @@
     'category': 'Chatbots',
     'depends': ['base', 'fastapi'],
     'data': [
-        'data/demo_fastapi_user.xml',
-        'data/demo_fastapi_group.xml',
+        'data/res_users.xml',
+        'security/res_groups.xml',
+        'security/ir.model.access.csv',
+        'security/ir_rule.xml',
         'data/fastapi_endpoint.xml',
     ],
     'installable': True,

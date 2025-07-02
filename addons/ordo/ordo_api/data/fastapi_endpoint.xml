@@ -9,8 +9,8 @@
     </record>
 
     <record id="fastapi_endpoint_whatsapp" model="fastapi.endpoint">
-        <field name="name">Whatsapp Endpoint</field>
-        <field name="app">whatsapp</field>
+        <field name="name">Ordo Endpoint</field>
+        <field name="app">ordo</field>
         <field name="root_path">/ordo</field>
         <field name="user_id" ref="social_media_user"/>
         <field name="demo_auth_method">http_basic</field>
