@@ -3,8 +3,16 @@
     <record id="fastapi_endpoint_demo" model="fastapi.endpoint">
         <field name="name">Ordo Demo Endpoint</field>
         <field name="app">demo</field>
-        <field name="root_path">/ordo</field>
+        <field name="root_path">/demo</field>
         <field name="user_id" ref="my_demo_app_user"/>
+        <field name="demo_auth_method">http_basic</field>
+    </record>
+
+    <record id="fastapi_endpoint_whatsapp" model="fastapi.endpoint">
+        <field name="name">Whatsapp Endpoint</field>
+        <field name="app">whatsapp</field>
+        <field name="root_path">/ordo</field>
+        <field name="user_id" ref="social_media_user"/>
         <field name="demo_auth_method">http_basic</field>
     </record>
 </odoo>

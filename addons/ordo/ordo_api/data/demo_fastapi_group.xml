@@ -4,11 +4,22 @@
         <field name="users" eval="[(4, ref('my_demo_app_user'))]" />
         <field name="implied_ids" eval="[(4, ref('fastapi.group_fastapi_endpoint_runner'))]" />
     </record>
+    <record id="social_media_group" model="res.groups">
+        <field name="name">Social Media Endpoints Group</field>
+        <field name="users" eval="[(4, ref('social_media_user'))]" />
+        <field name="implied_ids" eval="[(4, ref('fastapi.group_fastapi_endpoint_runner'))]" />
+    </record>
     
     <record id="access_res_partner_demo" model="ir.model.access">
         <field name="name">res.partner access for Demo API</field>
         <field name="model_id" ref="base.model_res_partner"/>
         <field name="group_id" ref="my_demo_app_group"/>
+        <field name="perm_read" eval="True"/>
+    </record>
+    <record id="access_res_partner_demo" model="ir.model.access">
+        <field name="name">res.partner access for Social Media API</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="group_id" ref="social_media_group"/>
         <field name="perm_read" eval="True"/>
     </record>
     
@@ -17,5 +28,11 @@
         <field name="model_id" ref="base.model_res_partner"/>
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('my_demo_app_group'))]"/>
+    </record>
+    <record id="res_partner_social_media_rule" model="ir.rule">
+        <field name="name">Partner Rule for Social Media API</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('social_media_group'))]"/>
     </record>
 </odoo>
