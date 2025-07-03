@@ -17,3 +17,6 @@
 [submodule "addons/oca/web-api"]
   path = addons/oca/web-api
   url = https://github.com/OCA/web-api.git
+[submodule "addons/autodoo"]
+	path = addons/autodoo
+	url = https://github.com/kajande/autodoo.git

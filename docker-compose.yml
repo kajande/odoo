@@ -28,6 +28,7 @@ services:
       - ./addons/ordo:/mnt/extra-addons
       - ./addons/oca/rest-framework:/mnt/oca-rest-framework
       - ./addons/oca/web-api:/mnt/oca-web-api
+      - ./addons/autodoo:/mnt/autodoo
 
 volumes:
   odoo-web-data:
