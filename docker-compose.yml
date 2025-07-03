@@ -28,7 +28,7 @@ services:
       - ./addons/social_media:/mnt/social_media
       - ./addons/oca/rest-framework:/mnt/oca-rest-framework
       - ./addons/oca/web-api:/mnt/oca-web-api
-      - ./addons/autodoo:/mnt/autodoo
+      - ./addons/setup_odoo:/mnt/setup_odoo
 
 volumes:
   odoo-web-data:

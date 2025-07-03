@@ -28,4 +28,4 @@ COPY --chown=odoo:odoo ./addons /mnt/extra-addons
 USER odoo
 
 # Run Odoo with initial module install
-CMD ["odoo", "-c", "/etc/odoo/odoo.conf", "-i", "autodoo"]
+CMD ["odoo", "-c", "/etc/odoo/odoo.conf", "-i", "setup_odoo"]

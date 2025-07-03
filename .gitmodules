@@ -13,12 +13,12 @@
 [submodule "addons/oca/web-api"]
   path = addons/oca/web-api
   url = https://github.com/OCA/web-api.git
-[submodule "addons/autodoo"]
-	path = addons/autodoo
-	url = https://github.com/kajande/autodoo.git
 [submodule "addons/x"]
 	path = addons/x
 	url = https://github.com/kajande/x.git
 [submodule "addons/social_media"]
 	path = addons/social_media
 	url = https://github.com/kajande/social_media.git
+[submodule "addons/setup_odoo"]
+	path = addons/setup_odoo
+	url = https://github.com/kajande/setup_odoo.git
