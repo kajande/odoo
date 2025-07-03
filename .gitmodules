@@ -16,3 +16,6 @@
 [submodule "addons/autodoo"]
 	path = addons/autodoo
 	url = https://github.com/kajande/autodoo.git
+[submodule "addons/x"]
+	path = addons/x
+	url = https://github.com/kajande/x.git
