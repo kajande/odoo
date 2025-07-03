@@ -5,27 +5,27 @@ Fast odoo dev commands:
 
 ### install module
 ```bash
-docker exec -it ordo-odoo-1 odoo -i ordo --stop-after-init
+docker exec -it odoo-odoo-1 odoo -i odoo --stop-after-init
 ```
 
 ### update module
 ```bash
-docker exec -it ordo-odoo-1 odoo -u ordo --stop-after-init
+docker exec -it odoo-odoo-1 odoo -u odoo --stop-after-init
 ```
 
 ### update all modules
 ```bash
-docker exec -it ordo-odoo-1 odoo -u all --stop-after-init
+docker exec -it odoo-odoo-1 odoo -u all --stop-after-init
 ```
 
 ### connect to odoo postgres database
 ```bash
-docker exec -it ordo-db-1 psql -U odoo -d odoo
+docker exec -it odoo-db-1 psql -U odoo -d odoo
 ```
 
 ### connect to odoo shell
 ```bash
-docker exec -it ordo-odoo-1 odoo shell -d odoo
+docker exec -it odoo-odoo-1 odoo shell -d odoo
 ```
 
 ### clean assets

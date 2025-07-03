@@ -25,10 +25,10 @@ services:
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
-      - ./addons/ordo:/mnt/extra-addons
+      - ./addons/social_media:/mnt/social_media
       - ./addons/oca/rest-framework:/mnt/oca-rest-framework
       - ./addons/oca/web-api:/mnt/oca-web-api
-      - ./addons/autodoo:/mnt/autodoo
+      - ./addons/setup_odoo:/mnt/setup_odoo
     restart: unless-stopped
 
 volumes:
