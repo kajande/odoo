@@ -27,3 +27,15 @@ docker exec -it ordo-db-1 psql -U odoo -d odoo
 ```bash
 docker exec -it ordo-odoo-1 odoo shell -d odoo
 ```
+
+### clean assets
+
+```bash
+docker exec -it odoo_odoo_1 odoo shell
+```
+
+```python
+domain = [('res_model','=','ir.ui.view'), ('name','like','assets_')]
+env['ir.attachment'].search(domain).unlink()
+env.cr.commit()
+```
