@@ -1,3 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_res_partner_demo,res.partner access for Demo API,base.model_res_partner,my_demo_app_group,1,0,0,0
-access_res_partner_social,res.partner access for Social Media API,base.model_res_partner,social_media_group,1,0,0,0

@@ -19,3 +19,6 @@
 [submodule "addons/x"]
 	path = addons/x
 	url = https://github.com/kajande/x.git
+[submodule "addons/social_media"]
+	path = addons/social_media
+	url = https://github.com/kajande/social_media.git
