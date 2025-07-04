@@ -11,7 +11,10 @@ services:
       - "5432:5432"
 
   odoo:
-    build: .
+    build:
+      context: .
+      args:
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
     depends_on:
       - db
     ports:
@@ -22,6 +25,7 @@ services:
       - DB_USER=odoo
       - DB_PASSWORD=odoo
       - DB_NAME=odoo
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
