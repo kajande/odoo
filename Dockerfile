@@ -3,6 +3,11 @@ FROM odoo:18.0
 # Switch to root to install dependencies
 USER root
 
+# Set OpenAI API key environment variable (leave it unset or blank)
+# The actual key should be provided at runtime.
+ARG OPENAI_API_KEY
+ENV OPENAI_API_KEY=${OPENAI_API_KEY}
+
 # Cache busting: separate COPY for requirements
 COPY ./requirements.txt /tmp/requirements.txt
 
@@ -13,7 +18,15 @@ RUN apt-get update && \
 
 # Install Python dependencies with cache busting
 RUN --mount=type=cache,target=/root/.cache \
-    pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /tmp/requirements.txt
+    set -x && \
+    echo "Installing requirements from /tmp/requirements.txt:" && \
+    cat /tmp/requirements.txt && \
+    pip3 install \
+        --verbose \
+        --break-system-packages \
+        --no-cache-dir \
+        --ignore-installed \
+        -r /tmp/requirements.txt
 
 # Set permissions for custom addons and Odoo data
 RUN mkdir -p /mnt/extra-addons && \
