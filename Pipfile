@@ -1,0 +1,28 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+ipdb = "*"
+ipython = "*"
+fastapi = ">=0.110.0"
+uvicorn = "*"
+python-multipart = "*"
+ujson = "*"
+a2wsgi = ">=1.10.6"
+parse-accept-language = "*"
+packaging = "*"
+aiohttp = "*"
+aiofiles = "*"
+reportlab = "*"
+langchain-openai = "*"
+langchain-community = "*"
+langgraph = "==0.3.25"
+asyncpg = "*"
+langgraph-checkpoint-postgres = "==2.0.21"
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"

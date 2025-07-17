@@ -1,4 +1,6 @@
 ipdb
+ipython
+python-dotenv
 fastapi>=0.110.0
 uvicorn
 python-multipart
@@ -7,31 +9,15 @@ a2wsgi>=1.10.6
 parse-accept-language
 packaging
 aiohttp
-ipython
-langchain_openai
-langchain-community
-langgraph==0.3.25
-langgraph-checkpoint
-langgraph-checkpoint-sqlite
-psycopg
-psycopg-pool
-psycopg[binary]
-asyncpg
-langgraph-checkpoint-postgres
-supabase
 aiofiles
-aiosqlite
-pypdf2
-pdfplumber
 reportlab
-rich
-twilio
-pdflatex
-azure-cognitiveservices-vision-computervision
-pillow
-openpyxl
-pandas
-jinja2
-bs4
-python-multipart
-replicate
+# pdflatex
+langchain-openai
+langchain-community
+langgraph==0.3.25 # 0.5.0 ?
+asyncpg
+langgraph-checkpoint-postgres==2.0.21
+# mcp[cli]
+# fastmcp
+# uv
+# git+https://github.com/openai/openai-agents-python.git

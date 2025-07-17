@@ -3,6 +3,11 @@ Kajande Odoo projects and modules
 
 Fast odoo dev commands:
 
+### docker start command
+```bash
+docker compose up --build -d && docker attach odoo-odoo-1
+```
+
 ### install module
 ```bash
 docker exec -it odoo-odoo-1 odoo -i odoo --stop-after-init

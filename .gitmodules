@@ -22,3 +22,10 @@
 [submodule "addons/setup_odoo"]
 	path = addons/setup_odoo
 	url = https://github.com/kajande/setup_odoo.git
+[submodule "addons/oca/dms"]
+	path = addons/oca/dms
+	url = https://github.com/OCA/dms.git
+[submodule "libs/mcp-odoo"]
+	path = libs/mcp-odoo
+	url = https://github.com/kajande/mcp-odoo.git
+	branch = odoo
