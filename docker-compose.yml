@@ -1,6 +1,8 @@
 services:
   db:
-    image: postgres:15
+    build:
+      context: .
+      dockerfile: db.Dockerfile
     environment:
       POSTGRES_DB: odoo
       POSTGRES_USER: odoo
@@ -9,28 +11,83 @@ services:
       - odoo-db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo -d odoo"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
 
   odoo:
-    build: .
+    build:
+      context: .
+      args:
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8069:8069"
     environment:
-      DB_HOST: aws-0-eu-central-1.pooler.supabase.com
-      DB_PORT: 5432
-      DB_USER: postgres.japcfankaqxrwyjzydsy
-      DB_PASSWORD: "ciyrF86sP9gH&-J"
-      DB_NAME: postgres
+      - DB_HOST=aws-0-eu-central-1.pooler.supabase.com
+      - DB_PORT=5432
+      - DB_USER=postgres.japcfankaqxrwyjzydsy
+      - DB_PASSWORD="ciyrF86sP9gH&-J"
+      - DB_NAME=postgres
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PGPASSWORD=odoo
+      - PYTHONUNBUFFERED=1
+      - TERM=xterm-color
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
+      - ./addons/setup_odoo:/mnt/setup_odoo
       - ./addons/social_media:/mnt/social_media
       - ./addons/oca/rest-framework:/mnt/oca-rest-framework
       - ./addons/oca/web-api:/mnt/oca-web-api
-      - ./addons/setup_odoo:/mnt/setup_odoo
+      - ./addons/oca/dms:/mnt/oca-dms
+    tty: true
+    stdin_open: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8069/web/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    command: >
+      sh -c "echo 'Odoo configuration:';
+      cat /etc/odoo/odoo.conf;
+      python3 -u $$(which odoo) -c /etc/odoo/odoo.conf --workers=0 -i base,setup_odoo"
+
+  mcp:
+    build:
+      context: ./libs/mcp-odoo
+      dockerfile: Dockerfile
+    depends_on:
+      odoo:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    ports:
+      - "42077:42077"
+    environment:
+      - ODOO_URL=http://odoo:8069
+      - ODOO_DB=odoo
+      - ODOO_USERNAME=moctar.diallo@kajande.com
+      - ODOO_PASSWORD=x4%Psx@f*d^ae-4
+      - ODOO_TIMEOUT=30
+      - ODOO_VERIFY_SSL=0
+      - DEBUG=1
+      - PYTHONUNBUFFERED=1
+      - PG_URI=postgresql://odoo:odoo@db:5432/odoo
+    volumes:
+      - mcp-logs:/app/logs
+    tty: true
+    stdin_open: true
+    command: python -u run_server.py
     restart: unless-stopped
 
 volumes:
   odoo-web-data:
   odoo-db-data:
+  mcp-logs:

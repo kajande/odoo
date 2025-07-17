@@ -3,8 +3,7 @@ FROM odoo:18.0
 # Switch to root to install dependencies
 USER root
 
-# Set OpenAI API key environment variable (leave it unset or blank)
-# The actual key should be provided at runtime.
+# Set OpenAI API key environment variable
 ARG OPENAI_API_KEY
 ENV OPENAI_API_KEY=${OPENAI_API_KEY}
 
@@ -15,6 +14,15 @@ COPY ./requirements.txt /tmp/requirements.txt
 RUN apt-get update && \
     apt-get install -y iputils-ping postgresql-client && \
     rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    texlive-latex-base \
+    texlive-latex-extra \
+    texlive-fonts-recommended \
+    texlive-xetex \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN  apt-get update && apt-get install poppler-utils -y # pdf2image
 
 # Install Python dependencies with cache busting
 RUN --mount=type=cache,target=/root/.cache \
