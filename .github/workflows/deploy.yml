@@ -121,14 +121,12 @@ jobs:
         working-directory: ./ansible
         env:
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          echo "Running playbook with inventory:"
-          cat inventory/production.ini
-          echo ""
           ANSIBLE_FORCE_COLOR=1 ansible-playbook \
             -i inventory/production.ini \
             playbooks/deploy-odoo.yml \
-            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ secrets.GITHUB_USER }}"
+            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ secrets.GITHUB_USER }} openai_api_key=$OPENAI_API_KEY"
 
       - name: Show container logs on failure
         if: ${{ failure() }}
@@ -207,15 +205,13 @@ jobs:
         working-directory: ./ansible
         env:
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANSIBLE_DISPLAY_SKIPPED_HOSTS: false
         run: |
-          echo "Running update playbook with inventory:"
-          cat inventory/production.ini
-          echo ""
           ANSIBLE_FORCE_COLOR=1 ansible-playbook \
             -i inventory/production.ini \
             playbooks/update-odoo.yml \
-            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ secrets.GITHUB_USER }}"
+            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ secrets.GITHUB_USER }} openai_api_key=$OPENAI_API_KEY"
 
       - name: Show container logs on failure
         if: ${{ failure() }}

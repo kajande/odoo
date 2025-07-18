@@ -11,7 +11,6 @@ services:
       - odoo-db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    # Health check for PostgreSQL
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U odoo -d odoo"]
       interval: 5s
@@ -30,11 +29,11 @@ services:
     ports:
       - "8069:8069"
     environment:
-      - DB_HOST=db
+      - DB_HOST=aws-0-eu-central-1.pooler.supabase.com
       - DB_PORT=5432
-      - DB_USER=odoo
-      - DB_PASSWORD=odoo
-      - DB_NAME=odoo
+      - DB_USER=postgres.japcfankaqxrwyjzydsy
+      - DB_PASSWORD="ciyrF86sP9gH&-J"
+      - DB_NAME=postgres
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PGPASSWORD=odoo
       - PYTHONUNBUFFERED=1
@@ -49,7 +48,6 @@ services:
       - ./addons/oca/dms:/mnt/oca-dms
     tty: true
     stdin_open: true
-    # Health check for Odoo web interface
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8069/web"]
       interval: 10s
@@ -68,20 +66,20 @@ services:
     depends_on:
       odoo:
         condition: service_healthy
-      db:  # Add dependency on the database
+      db:
         condition: service_healthy
     ports:
       - "42077:42077"
     environment:
       - ODOO_URL=http://odoo:8069
       - ODOO_DB=odoo
-      - ODOO_USERNAME=admin
-      - ODOO_PASSWORD=admin
+      - ODOO_USERNAME=moctar.diallo@kajande.com
+      - ODOO_PASSWORD=x4%Psx@f*d^ae-4
       - ODOO_TIMEOUT=30
       - ODOO_VERIFY_SSL=0
       - DEBUG=1
       - PYTHONUNBUFFERED=1
-      - PG_URI=postgresql://odoo:odoo@db:5432/odoo  # Add PostgreSQL URI
+      - PG_URI=postgresql://odoo:odoo@db:5432/odoo
     volumes:
       - mcp-logs:/app/logs
     tty: true

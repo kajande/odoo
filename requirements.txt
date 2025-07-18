@@ -20,4 +20,4 @@ langgraph-checkpoint-postgres==2.0.21
 # mcp[cli]
 # fastmcp
 # uv
-git+https://github.com/openai/openai-agents-python.git
+# git+https://github.com/openai/openai-agents-python.git
