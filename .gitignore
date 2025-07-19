@@ -1,6 +1,12 @@
+TODO
 .editignore
 addons/xyz
+libs/langgraph/
+libs/mcp-server-demo/
 import_xml.rng
+mcp-odoo.txt
+terraform.txt
+ansible.txt
 
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python

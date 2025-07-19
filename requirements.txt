@@ -17,6 +17,7 @@ langchain-community
 langgraph==0.3.25 # 0.5.0 ?
 asyncpg
 langgraph-checkpoint-postgres==2.0.21
+openai-agents
 # mcp[cli]
 # fastmcp
 # uv

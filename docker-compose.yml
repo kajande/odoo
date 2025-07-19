@@ -1,43 +1,47 @@
 services:
-  # db:
-  #   build:
-  #     context: .
-  #     dockerfile: db.Dockerfile
-  #   environment:
-  #     POSTGRES_DB: odoo
-  #     POSTGRES_USER: odoo
-  #     POSTGRES_PASSWORD: odoo
-  #   volumes:
-  #     - odoo-db-data:/var/lib/postgresql/data
-  #   ports:
-  #     - "5432:5432"
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U odoo -d odoo"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 15
-  #     start_period: 30s
+  db:
+    build:
+      context: .
+      dockerfile: db.Dockerfile
+    environment:
+      POSTGRES_DB: odoo
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo -d odoo"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
 
   odoo:
     build:
       context: .
       args:
         OPENAI_API_KEY: ${OPENAI_API_KEY}
-    # depends_on:
-    #   db:
-    #     condition: service_healthy
+        HOST_UID: ${UID}
+        HOST_GID: ${GID}
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8069:8069"
+    user: "${UID}:${GID}"
     environment:
-      - DB_HOST=aws-0-eu-central-1.pooler.supabase.com
+      - DB_HOST=db
       - DB_PORT=5432
-      - DB_USER=postgres.japcfankaqxrwyjzydsy
-      - DB_PASSWORD="ciyrF86sP9gH&-J"
-      - DB_NAME=postgres
+      - DB_USER=odoo
+      - DB_PASSWORD=odoo
+      - DB_NAME=odoo
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PGPASSWORD=odoo
       - PYTHONUNBUFFERED=1
       - TERM=xterm-color
+      - ODOO_LOGFILE=/var/log/odoo/odoo.log
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
@@ -46,6 +50,7 @@ services:
       - ./addons/oca/rest-framework:/mnt/oca-rest-framework
       - ./addons/oca/web-api:/mnt/oca-web-api
       - ./addons/oca/dms:/mnt/oca-dms
+      - ./logs:/var/log/odoo
     tty: true
     stdin_open: true
     healthcheck:
@@ -66,20 +71,20 @@ services:
     depends_on:
       odoo:
         condition: service_healthy
-      # db:
-      #   condition: service_healthy
-    # ports:
-    #   - "42077:42077"
+      db:
+        condition: service_healthy
+    ports:
+      - "42077:42077"
     environment:
       - ODOO_URL=http://odoo:8069
       - ODOO_DB=odoo
-      - ODOO_USERNAME=moctar.diallo@kajande.com
-      - ODOO_PASSWORD=x4%Psx@f*d^ae-4
+      - ODOO_USERNAME=admin
+      - ODOO_PASSWORD=admin
       - ODOO_TIMEOUT=30
       - ODOO_VERIFY_SSL=0
       - DEBUG=1
       - PYTHONUNBUFFERED=1
-      - PG_URI=postgresql://postgres.japcfankaqxrwyjzydsy:"ciyrF86sP9gH&-J"@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
+      - PG_URI=postgresql://odoo:odoo@db:5432/odoo
     volumes:
       - mcp-logs:/app/logs
     tty: true
