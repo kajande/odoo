@@ -74,7 +74,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "42077:42077"
+      - "8000:8000"
     environment:
       - ODOO_URL=http://odoo:8069
       - ODOO_DB=odoo
@@ -85,11 +85,11 @@ services:
       - DEBUG=1
       - PYTHONUNBUFFERED=1
       - PG_URI=postgresql://odoo:odoo@db:5432/odoo
+      - MCP_TRANSPORT=streamable-http  # Explicitly set transport
     volumes:
       - mcp-logs:/app/logs
     tty: true
     stdin_open: true
-    command: python -u run_server.py
     restart: unless-stopped
 
 volumes:
