@@ -7,6 +7,11 @@ import_xml.rng
 mcp-odoo.txt
 terraform.txt
 ansible.txt
+setup_odoo.txt
+social_media.txt
+mcp_odoo.txt
+.mcp.json
+remove_none_images.sh
 
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
