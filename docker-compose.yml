@@ -30,7 +30,7 @@ services:
         condition: service_healthy
     ports:
       - "8069:8069"
-    user: "${UID}:${GID}"
+    # user: "${UID}:${GID}"
     environment:
       - DB_HOST=db
       - DB_PORT=5432
