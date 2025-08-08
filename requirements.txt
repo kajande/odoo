@@ -21,4 +21,4 @@ langchain-mcp-adapters
 # mcp[cli]
 # fastmcp
 # uv
-# git+https://github.com/openai/openai-agents-python.git
+git+https://github.com/moctarjallo/dulayni.git
