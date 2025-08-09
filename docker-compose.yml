@@ -4,15 +4,15 @@ services:
       context: .
       dockerfile: db.Dockerfile
     environment:
-      POSTGRES_DB: odoo
-      POSTGRES_USER: odoo
-      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - odoo-db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U odoo -d odoo"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -25,20 +25,25 @@ services:
         OPENAI_API_KEY: ${OPENAI_API_KEY}
         HOST_UID: ${UID}
         HOST_GID: ${GID}
+        DB_HOST: ${DB_HOST}
+        DB_PORT: ${DB_PORT}
+        DB_USER: ${DB_USER}
+        DB_PASSWORD: ${DB_PASSWORD}
+        DB_NAME: ${DB_NAME}
+        PGPASSWORD: ${PGPASSWORD}
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "8069:8069"
-    # user: "${UID}:${GID}"
     environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=odoo
-      - DB_PASSWORD=odoo
-      - DB_NAME=odoo
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - PGPASSWORD=odoo
+      - PGPASSWORD=${PGPASSWORD}
       - PYTHONUNBUFFERED=1
       - TERM=xterm-color
       - ODOO_LOGFILE=/var/log/odoo/odoo.log
@@ -77,15 +82,15 @@ services:
       - "8000:8000"
     environment:
       - ODOO_URL=http://odoo:8069
-      - ODOO_DB=odoo
-      - ODOO_USERNAME=admin
-      - ODOO_PASSWORD=admin
+      - ODOO_DB=${ODOO_DB}
+      - ODOO_USERNAME=${ODOO_USERNAME}
+      - ODOO_PASSWORD=${ODOO_PASSWORD}
       - ODOO_TIMEOUT=30
       - ODOO_VERIFY_SSL=0
       - DEBUG=1
       - PYTHONUNBUFFERED=1
-      - PG_URI=postgresql://odoo:odoo@db:5432/odoo
-      - MCP_TRANSPORT=streamable-http  # Explicitly set transport
+      - PG_URI=${PG_URI}
+      - MCP_TRANSPORT=streamable-http
     volumes:
       - mcp-logs:/app/logs
     tty: true

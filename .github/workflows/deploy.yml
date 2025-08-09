@@ -30,7 +30,6 @@ jobs:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
 
-      # Install dependencies for Terraform wait script
       - name: Install jq and curl
         run: sudo apt-get update && sudo apt-get install -y jq curl
 
@@ -74,7 +73,6 @@ jobs:
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
         run: |
-          # Use reserved IP for Ansible connection
           ip=$(terraform output -raw reserved_ip)
           clean_ip=$(echo "$ip" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
           mkdir -p ../ansible/inventory
@@ -127,6 +125,16 @@ jobs:
         env:
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          ODOO_DB: ${{ secrets.ODOO_DB }}
+          ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+          PG_URI: ${{ secrets.PG_URI }}
         run: |
           ANSIBLE_FORCE_COLOR=1 ansible-playbook \
             -i inventory/production.ini \
@@ -211,6 +219,16 @@ jobs:
         env:
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          ODOO_DB: ${{ secrets.ODOO_DB }}
+          ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+          PG_URI: ${{ secrets.PG_URI }}
           ANSIBLE_DISPLAY_SKIPPED_HOSTS: false
         run: |
           ANSIBLE_FORCE_COLOR=1 ansible-playbook \

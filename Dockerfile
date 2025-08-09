@@ -3,14 +3,36 @@ FROM odoo:18.0
 # Switch to root to install dependencies
 USER root
 
-# Set OpenAI API key environment variable
+# Build args for API key and DB credentials
 ARG OPENAI_API_KEY
+ARG DB_HOST
+ARG DB_PORT
+ARG DB_USER
+ARG DB_PASSWORD
+ARG DB_NAME
+ARG PGPASSWORD
+ARG ODOO_DB
+ARG ODOO_USERNAME
+ARG ODOO_PASSWORD
+ARG PG_URI
+
+# Environment variables for runtime
 ENV OPENAI_API_KEY=${OPENAI_API_KEY}
+ENV DB_HOST=${DB_HOST}
+ENV DB_PORT=${DB_PORT}
+ENV DB_USER=${DB_USER}
+ENV DB_PASSWORD=${DB_PASSWORD}
+ENV DB_NAME=${DB_NAME}
+ENV PGPASSWORD=${PGPASSWORD}
+ENV ODOO_DB=${ODOO_DB}
+ENV ODOO_USERNAME=${ODOO_USERNAME}
+ENV ODOO_PASSWORD=${ODOO_PASSWORD}
+ENV PG_URI=${PG_URI}
 
 # Cache busting: separate COPY for requirements
 COPY ./requirements.txt /tmp/requirements.txt
 
-# Install OS-level dependencies (including git)
+# Install OS-level dependencies
 RUN apt-get update && \
     apt-get install -y \
     iputils-ping \
@@ -31,7 +53,7 @@ RUN apt-get update && apt-get install -y \
     poppler-utils && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies with cache busting
+# Install Python dependencies
 RUN --mount=type=cache,target=/root/.cache \
     set -x && \
     echo "Installing requirements from /tmp/requirements.txt:" && \
@@ -49,7 +71,6 @@ RUN mkdir -p /mnt/extra-addons && \
     chown -R odoo:odoo /var/lib/odoo && \
     chsh -s /bin/bash odoo || usermod -s /bin/bash odoo
 
-# Fix permissions for all custom mounts (important for VS Code editing)
 RUN mkdir -p /mnt && \
     chown -R odoo:odoo /mnt
 
@@ -57,8 +78,8 @@ RUN mkdir -p /mnt && \
 COPY --chown=odoo:odoo ./config/odoo.conf /etc/odoo/odoo.conf
 COPY --chown=odoo:odoo ./addons /mnt/extra-addons
 
-# Switch to odoo user (now has /bin/bash shell)
+# Switch to odoo user
 USER odoo
 
-# Run Odoo with initial module install
+# Run Odoo
 CMD ["odoo", "-c", "/etc/odoo/odoo.conf", "-i", "setup_odoo"]
