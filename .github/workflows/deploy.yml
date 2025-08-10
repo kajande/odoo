@@ -92,6 +92,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [terraform-provision]
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+    outputs:
+      deployment-completed: ${{ steps.mark-complete.outputs.completed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -142,15 +144,70 @@ jobs:
             playbooks/deploy-odoo.yml \
             --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ vars.GITHUB_USER }} openai_api_key=$OPENAI_API_KEY"
 
+      - name: Mark deployment complete
+        id: mark-complete
+        run: |
+          echo "completed=true" >> $GITHUB_OUTPUT
+          echo "DEPLOYMENT_COMPLETED=true" >> $GITHUB_ENV
+
+      - name: Create deployment marker
+        run: |
+          echo "deployment-completed-$(date +%s)" > /tmp/deployment-marker
+          echo "Deployment completed at $(date)"
+
       - name: Show container logs on failure
         if: ${{ failure() }}
         run: |
           ip=$(grep -Eo '[0-9.]+' ansible/inventory/production.ini)
           ssh -o StrictHostKeyChecking=no root@$ip "cd /home/odoo && docker-compose logs"
 
-  deploy-on-push:
+  check-deployment-status:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      can-deploy: ${{ steps.check.outputs.can-deploy }}
+    steps:
+      - name: Check if initial deployment completed
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check for successful ansible-deploy job in recent workflow runs
+          recent_runs=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$(basename ${{ github.workflow }}).yml/runs?status=completed&per_page=10")
+          
+          # Look for a successful run that included ansible-deploy
+          has_successful_deploy=$(echo "$recent_runs" | jq -r '
+            .workflow_runs[] | 
+            select(.conclusion == "success" and .event == "workflow_dispatch") | 
+            .id' | head -1)
+          
+          if [ -n "$has_successful_deploy" ]; then
+            # Verify the ansible-deploy job actually completed successfully in that run
+            jobs=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/runs/$has_successful_deploy/jobs")
+            
+            ansible_job_success=$(echo "$jobs" | jq -r '
+              .jobs[] | 
+              select(.name == "ansible-deploy") | 
+              .conclusion')
+            
+            if [ "$ansible_job_success" = "success" ]; then
+              echo "can-deploy=true" >> $GITHUB_OUTPUT
+              echo "Found successful ansible-deploy job in run $has_successful_deploy"
+            else
+              echo "can-deploy=false" >> $GITHUB_OUTPUT
+              echo "No successful ansible-deploy job found"
+            fi
+          else
+            echo "can-deploy=false" >> $GITHUB_OUTPUT
+            echo "No successful workflow_dispatch runs found"
+          fi
+
+  deploy-on-push:
+    runs-on: ubuntu-latest
+    needs: [check-deployment-status]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.check-deployment-status.outputs.can-deploy == 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
