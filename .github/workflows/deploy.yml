@@ -150,10 +150,11 @@ jobs:
           echo "completed=true" >> $GITHUB_OUTPUT
           echo "DEPLOYMENT_COMPLETED=true" >> $GITHUB_ENV
 
-      - name: Create deployment marker
+      - name: Create deployment success marker
         run: |
-          echo "deployment-completed-$(date +%s)" > /tmp/deployment-marker
-          echo "Deployment completed at $(date)"
+          # Create a deployment marker that can be checked by subsequent runs
+          echo "DEPLOYMENT_SUCCESS=true" >> $GITHUB_ENV
+          echo "Deployment completed successfully at $(date)"
 
       - name: Show container logs on failure
         if: ${{ failure() }}
@@ -172,36 +173,55 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Check for successful ansible-deploy job in recent workflow runs
-          recent_runs=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$(basename ${{ github.workflow }}).yml/runs?status=completed&per_page=10")
+          echo "Checking for successful ansible-deploy jobs..."
           
-          # Look for a successful run that included ansible-deploy
-          has_successful_deploy=$(echo "$recent_runs" | jq -r '
+          # Get all workflow runs for this repository, focusing on completed ones
+          recent_runs=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs?status=completed&per_page=20&event=workflow_dispatch")
+          
+          echo "Found workflow runs:"
+          echo "$recent_runs" | jq -r '.workflow_runs[] | "\(.id) - \(.conclusion) - \(.event) - \(.created_at)"'
+          
+          # Look for successful workflow_dispatch runs
+          successful_runs=$(echo "$recent_runs" | jq -r '
             .workflow_runs[] | 
             select(.conclusion == "success" and .event == "workflow_dispatch") | 
-            .id' | head -1)
+            .id')
           
-          if [ -n "$has_successful_deploy" ]; then
-            # Verify the ansible-deploy job actually completed successfully in that run
+          echo "Successful workflow_dispatch runs: $successful_runs"
+          
+          found_successful_deploy=false
+          
+          # Check each successful run for ansible-deploy job
+          for run_id in $successful_runs; do
+            echo "Checking run $run_id for ansible-deploy job..."
+            
             jobs=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/runs/$has_successful_deploy/jobs")
+              "https://api.github.com/repos/${{ github.repository }}/actions/runs/$run_id/jobs")
             
-            ansible_job_success=$(echo "$jobs" | jq -r '
+            ansible_job=$(echo "$jobs" | jq -r '
               .jobs[] | 
-              select(.name == "ansible-deploy") | 
-              .conclusion')
+              select(.name == "ansible-deploy")')
             
-            if [ "$ansible_job_success" = "success" ]; then
-              echo "can-deploy=true" >> $GITHUB_OUTPUT
-              echo "Found successful ansible-deploy job in run $has_successful_deploy"
-            else
-              echo "can-deploy=false" >> $GITHUB_OUTPUT
-              echo "No successful ansible-deploy job found"
+            if [ -n "$ansible_job" ]; then
+              ansible_conclusion=$(echo "$ansible_job" | jq -r '.conclusion')
+              echo "Found ansible-deploy job with conclusion: $ansible_conclusion"
+              
+              if [ "$ansible_conclusion" = "success" ]; then
+                echo "✅ Found successful ansible-deploy job in run $run_id"
+                found_successful_deploy=true
+                break
+              fi
             fi
+          done
+          
+          if [ "$found_successful_deploy" = "true" ]; then
+            echo "can-deploy=true" >> $GITHUB_OUTPUT
+            echo "✅ Can deploy - found successful ansible-deploy job"
           else
             echo "can-deploy=false" >> $GITHUB_OUTPUT
-            echo "No successful workflow_dispatch runs found"
+            echo "❌ Cannot deploy - no successful ansible-deploy job found"
+            echo "This is expected for the first run. Please run 'terraform apply' via workflow_dispatch first."
           fi
 
   deploy-on-push:
