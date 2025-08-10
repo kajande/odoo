@@ -1,22 +1,22 @@
 services:
-  db:
-    build:
-      context: .
-      dockerfile: db.Dockerfile
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - odoo-db-data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 15
-      start_period: 30s
+  # db:
+  #   build:
+  #     context: .
+  #     dockerfile: db.Dockerfile
+  #   environment:
+  #     POSTGRES_DB: ${DB_NAME}
+  #     POSTGRES_USER: ${DB_USER}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #   volumes:
+  #     - odoo-db-data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 15
+  #     start_period: 30s
 
   odoo:
     build:
@@ -31,9 +31,13 @@ services:
         DB_PASSWORD: ${DB_PASSWORD}
         DB_NAME: ${DB_NAME}
         PGPASSWORD: ${PGPASSWORD}
-    depends_on:
-      db:
-        condition: service_healthy
+        ODOO_DB: ${ODOO_DB}
+        ODOO_USERNAME: ${ODOO_USERNAME}
+        ODOO_PASSWORD: ${ODOO_PASSWORD}
+        PG_URI: ${PG_URI}
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
     ports:
       - "8069:8069"
     environment:
@@ -44,9 +48,20 @@ services:
       - DB_NAME=${DB_NAME}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PGPASSWORD=${PGPASSWORD}
+      - ODOO_DB=${ODOO_DB}
+      - ODOO_USERNAME=${ODOO_USERNAME}
+      - ODOO_PASSWORD=${ODOO_PASSWORD}
+      - PG_URI=${PG_URI}
       - PYTHONUNBUFFERED=1
       - TERM=xterm-color
       - ODOO_LOGFILE=/var/log/odoo/odoo.log
+      # Additional Odoo configuration environment variables
+      - ODOO_WORKERS=${ODOO_WORKERS:-0}
+      - ODOO_LOG_LEVEL=${ODOO_LOG_LEVEL:-info}
+      - ODOO_MAX_CRON_THREADS=${ODOO_MAX_CRON_THREADS:-2}
+      - ODOO_PROXY_MODE=${ODOO_PROXY_MODE:-False}
+      - DB_MAXCONN=${DB_MAXCONN:-64}
+      - DB_TEMPLATE=${DB_TEMPLATE:-template0}
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
@@ -64,10 +79,8 @@ services:
       timeout: 10s
       retries: 10
       start_period: 120s
-    command: >
-      sh -c "echo 'Odoo configuration:';
-      cat /etc/odoo/odoo.conf;
-      python3 -u $$(which odoo) -c /etc/odoo/odoo.conf --workers=0 -i base,setup_odoo"
+    # The entrypoint.sh will handle the configuration generation
+    # No need to override the command here anymore
 
   mcp:
     build:
@@ -76,8 +89,8 @@ services:
     depends_on:
       odoo:
         condition: service_healthy
-      db:
-        condition: service_healthy
+      # db:
+      #   condition: service_healthy
     ports:
       - "8000:8000"
     environment:

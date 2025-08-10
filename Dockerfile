@@ -32,12 +32,14 @@ ENV PG_URI=${PG_URI}
 # Cache busting: separate COPY for requirements
 COPY ./requirements.txt /tmp/requirements.txt
 
-# Install OS-level dependencies
+# Install OS-level dependencies (including envsubst and gosu)
 RUN apt-get update && \
     apt-get install -y \
     iputils-ping \
     postgresql-client \
-    git && \
+    git \
+    gettext-base \
+    gosu && \
     rm -rf /var/lib/apt/lists/*
 
 # Install LaTeX (for PDF generation)
@@ -74,12 +76,18 @@ RUN mkdir -p /mnt/extra-addons && \
 RUN mkdir -p /mnt && \
     chown -R odoo:odoo /mnt
 
-# Copy Odoo config and addons
-COPY --chown=odoo:odoo ./config/odoo.conf /etc/odoo/odoo.conf
+# Copy addons and entrypoint script (no template needed)
 COPY --chown=odoo:odoo ./addons /mnt/extra-addons
+COPY ./entrypoint.sh /entrypoint.sh
 
-# Switch to odoo user
-USER odoo
+# Make entrypoint script executable
+RUN chmod +x /entrypoint.sh
+
+# Don't switch to odoo user yet - let entrypoint handle it
+# USER odoo
+
+# Set the entrypoint (runs as root, then switches to odoo user)
+ENTRYPOINT ["/entrypoint.sh"]
 
 # Run Odoo
 CMD ["odoo", "-c", "/etc/odoo/odoo.conf", "-i", "setup_odoo"]
