@@ -4,30 +4,30 @@ services:
       context: .
       args:
         OPENAI_API_KEY: ${OPENAI_API_KEY}
-        HOST_UID: ${UID}
-        HOST_GID: ${GID}
-        DB_HOST: ${DB_HOST}
-        DB_PORT: ${DB_PORT}
-        DB_USER: ${DB_USER}
+        HOST_UID: ${UID:-1000}
+        HOST_GID: ${GID:-1000}
+        DB_HOST: ${DB_HOST:-db}
+        DB_PORT: ${DB_PORT:-5432}
+        DB_USER: ${DB_USER:-odoo}
         DB_PASSWORD: ${DB_PASSWORD}
-        DB_NAME: ${DB_NAME}
+        DB_NAME: ${DB_NAME:-odoo}
         PGPASSWORD: ${PGPASSWORD}
-        ODOO_DB: ${ODOO_DB}
-        ODOO_USERNAME: ${ODOO_USERNAME}
+        ODOO_DB: ${ODOO_DB:-odoo}
+        ODOO_USERNAME: ${ODOO_USERNAME:-admin}
         ODOO_PASSWORD: ${ODOO_PASSWORD}
         PG_URI: ${PG_URI}
     ports:
       - "8069:8069"
     environment:
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_USER=${DB_USER}
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-odoo}
       - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
+      - DB_NAME=${DB_NAME:-odoo}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PGPASSWORD=${PGPASSWORD}
-      - ODOO_DB=${ODOO_DB}
-      - ODOO_USERNAME=${ODOO_USERNAME}
+      - ODOO_DB=${ODOO_DB:-odoo}
+      - ODOO_USERNAME=${ODOO_USERNAME:-admin}
       - ODOO_PASSWORD=${ODOO_PASSWORD}
       - PG_URI=${PG_URI}
       - PYTHONUNBUFFERED=1
@@ -50,6 +50,7 @@ services:
       - ./logs:/var/log/odoo
     tty: true
     stdin_open: true
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8069/web/health"]
       interval: 30s
@@ -67,15 +68,31 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # Odoo connection settings
       - ODOO_URL=http://odoo:8069
-      - ODOO_DB=${ODOO_DB}
-      - ODOO_USERNAME=${ODOO_USERNAME}
+      - ODOO_DB=${ODOO_DB:-odoo}
+      - ODOO_USERNAME=${ODOO_USERNAME:-admin}
       - ODOO_PASSWORD=${ODOO_PASSWORD}
       - ODOO_TIMEOUT=30
       - ODOO_VERIFY_SSL=0
+      
+      # Database settings (THESE WERE MISSING)
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-odoo}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME:-odoo}
+      - PGPASSWORD=${PGPASSWORD}
+      
+      # API Keys
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Constructed URI
+      - PG_URI=${PG_URI}
+      
+      # MCP settings
       - DEBUG=1
       - PYTHONUNBUFFERED=1
-      - PG_URI=${PG_URI}
       - MCP_TRANSPORT=streamable-http
     volumes:
       - mcp-logs:/app/logs
@@ -91,5 +108,8 @@ services:
 
 volumes:
   odoo-web-data:
+    driver: local
   odoo-db-data:
+    driver: local
   mcp-logs:
+    driver: local
