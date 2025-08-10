@@ -43,12 +43,12 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install LaTeX (for PDF generation)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    texlive-latex-base \
-    texlive-latex-extra \
-    texlive-fonts-recommended \
-    texlive-xetex && \
-    rm -rf /var/lib/apt/lists/*
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     texlive-latex-base \
+#     texlive-latex-extra \
+#     texlive-fonts-recommended \
+#     texlive-xetex && \
+#     rm -rf /var/lib/apt/lists/*
 
 # Install PDF utilities
 RUN apt-get update && apt-get install -y \
