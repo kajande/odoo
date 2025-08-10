@@ -1,23 +1,4 @@
 services:
-  # db:
-  #   build:
-  #     context: .
-  #     dockerfile: db.Dockerfile
-  #   environment:
-  #     POSTGRES_DB: ${DB_NAME}
-  #     POSTGRES_USER: ${DB_USER}
-  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
-  #   volumes:
-  #     - odoo-db-data:/var/lib/postgresql/data
-  #   ports:
-  #     - "5432:5432"
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 15
-  #     start_period: 30s
-
   odoo:
     build:
       context: .
@@ -35,9 +16,6 @@ services:
         ODOO_USERNAME: ${ODOO_USERNAME}
         ODOO_PASSWORD: ${ODOO_PASSWORD}
         PG_URI: ${PG_URI}
-    # depends_on:
-    #   db:
-    #     condition: service_healthy
     ports:
       - "8069:8069"
     environment:
@@ -55,7 +33,6 @@ services:
       - PYTHONUNBUFFERED=1
       - TERM=xterm-color
       - ODOO_LOGFILE=/var/log/odoo/odoo.log
-      # Additional Odoo configuration environment variables
       - ODOO_WORKERS=${ODOO_WORKERS:-0}
       - ODOO_LOG_LEVEL=${ODOO_LOG_LEVEL:-info}
       - ODOO_MAX_CRON_THREADS=${ODOO_MAX_CRON_THREADS:-2}
@@ -79,8 +56,6 @@ services:
       timeout: 10s
       retries: 10
       start_period: 120s
-    # The entrypoint.sh will handle the configuration generation
-    # No need to override the command here anymore
 
   mcp:
     build:
@@ -89,8 +64,6 @@ services:
     depends_on:
       odoo:
         condition: service_healthy
-      # db:
-      #   condition: service_healthy
     ports:
       - "8000:8000"
     environment:
