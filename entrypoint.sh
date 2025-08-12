@@ -29,12 +29,19 @@ echo "; Time limits in seconds" >> /etc/odoo/odoo.conf
 echo "limit_time_real = 3600" >> /etc/odoo/odoo.conf
 echo "limit_time_cpu = 3600" >> /etc/odoo/odoo.conf
 
-# Fix permissions
+# Fix config permissions
 chown odoo:odoo /etc/odoo/odoo.conf
 chmod 644 /etc/odoo/odoo.conf
 
 echo "Generated config:"
 cat /etc/odoo/odoo.conf
+
+# ============= Fix filestore permissions =============
+echo "=== Fixing filestore permissions ==="
+echo "Ensuring /var/lib/odoo is owned by odoo user..."
+chown -R odoo:odoo /var/lib/odoo
+chmod -R 755 /var/lib/odoo
+echo "Filestore permissions fixed."
 
 # Run Odoo
 echo "Starting Odoo..."
