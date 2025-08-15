@@ -14,6 +14,11 @@ on:
         options:
           - apply
           - destroy
+      setup_nginx:
+        description: 'Run Nginx setup after deployment?'
+        required: false
+        type: boolean
+        default: false
 
 env:
   ANSIBLE_FORCE_COLOR: 1
@@ -136,7 +141,6 @@ jobs:
           ODOO_DB: ${{ vars.ODOO_DB }}
           ODOO_USERNAME: ${{ vars.ODOO_USERNAME }}
           ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
-          # Construct PG_URI from components
           PG_URI: postgresql://${{ vars.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ vars.DB_HOST }}:${{ vars.DB_PORT }}/${{ vars.DB_NAME }}
         run: |
           ANSIBLE_FORCE_COLOR=1 ansible-playbook \
@@ -152,7 +156,6 @@ jobs:
 
       - name: Create deployment success marker
         run: |
-          # Create a deployment marker that can be checked by subsequent runs
           echo "DEPLOYMENT_SUCCESS=true" >> $GITHUB_ENV
           echo "Deployment completed successfully at $(date)"
 
@@ -161,6 +164,51 @@ jobs:
         run: |
           ip=$(grep -Eo '[0-9.]+' ansible/inventory/production.ini)
           ssh -o StrictHostKeyChecking=no root@$ip "cd /home/odoo && docker-compose logs"
+
+  setup-nginx:
+    runs-on: ubuntu-latest
+    needs: [ansible-deploy]
+    if: ${{ github.event.inputs.setup_nginx && needs.ansible-deploy.result == 'success' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Download inventory
+        uses: actions/download-artifact@v4
+        with:
+          name: ansible-inventory
+          path: ansible/inventory/
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Ansible + Collections
+        run: |
+          pip install ansible
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Run Nginx Setup Playbook
+        working-directory: ./ansible
+        run: |
+          ANSIBLE_FORCE_COLOR=1 ansible-playbook \
+            -i inventory/production.ini \
+            playbooks/setup-nginx.yml \
+            --extra-vars "domain=odoo.kajande.com email=moctar.diallo@kajande.com"
+
+      - name: Verify Nginx configuration
+        run: |
+          ip=$(grep -Eo '[0-9.]+' ansible/inventory/production.ini)
+          ssh -o StrictHostKeyChecking=no root@$ip "nginx -t"
 
   check-deployment-status:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
