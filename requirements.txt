@@ -21,4 +21,4 @@ langchain-mcp-adapters
 # mcp[cli]
 # fastmcp
 # uv
-git+https://github.com/moctarjallo/dulayni.git
+git+https://github.com/moctarjallo/dulayni.git@03a7facfef85b4a9c6a418b749c50bc564cb4da6

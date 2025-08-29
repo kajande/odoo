@@ -1,0 +1,88 @@
+name: Configure Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Configuration action'
+        required: true
+        default: apply
+        type: choice
+        options:
+          - apply
+
+env:
+  ANSIBLE_FORCE_COLOR: 1
+  ANSIBLE_HOST_KEY_CHECKING: false
+
+jobs:
+  ansible-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Install doctl
+        run: |
+          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.104.0/doctl-1.104.0-linux-amd64.tar.gz | tar -xzv
+          sudo mv doctl /usr/local/bin
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Determine Droplet IP
+        run: |
+          clean_ip=$(doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --tag-name odoo --format PublicIPv4 --no-header | head -n1)
+
+          if [ -z "$clean_ip" ]; then
+            echo "::error::No active droplets found with tag 'odoo'"
+            exit 1
+          fi
+
+          rm -f ansible/inventory/*
+          mkdir -p ansible/inventory
+          echo "[odoo]" > ansible/inventory/production.ini
+          echo "$clean_ip ansible_user=root" >> ansible/inventory/production.ini
+          echo "Using IP: $clean_ip"
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Ansible + Collections
+        run: |
+          pip install ansible
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Run Ansible Playbook
+        working-directory: ./ansible
+        env:
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DB_HOST: ${{ vars.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT }}
+          DB_USER: ${{ vars.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ vars.DB_NAME }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          ODOO_DB: ${{ vars.ODOO_DB }}
+          ODOO_USERNAME: ${{ vars.ODOO_USERNAME }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+          PG_URI: postgresql://${{ vars.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ vars.DB_HOST }}:${{ vars.DB_PORT }}/${{ vars.DB_NAME }}
+        run: |
+          ANSIBLE_FORCE_COLOR=1 ansible-playbook \
+            -i inventory/production.ini \
+            playbooks/deploy-odoo.yml \
+            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ vars.GITHUB_USER }} openai_api_key=$OPENAI_API_KEY"
+
+      - name: Show container logs on failure
+        if: ${{ failure() }}
+        run: |
+          ip=$(grep -Eo '[0-9.]+' ansible/inventory/production.ini)
+          ssh -o StrictHostKeyChecking=no root@$ip "cd /home/odoo && docker-compose logs"
