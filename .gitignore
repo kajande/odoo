@@ -10,6 +10,7 @@ ansible.txt
 setup_odoo.txt
 social_media.txt
 mcp_odoo.txt
+workflows.txt
 .mcp.json
 remove_none_images.sh
 config/odoo.conf

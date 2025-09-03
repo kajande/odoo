@@ -3,6 +3,15 @@ name: Configure Deployment
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - production
+          - staging
+          - dev
       action:
         description: 'Configuration action'
         required: true
@@ -18,6 +27,7 @@ env:
 jobs:
   ansible-deploy:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -37,17 +47,21 @@ jobs:
 
       - name: Determine Droplet IP
         run: |
-          clean_ip=$(doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --tag-name odoo --format PublicIPv4 --no-header | head -n1)
+          # Look for droplets with both 'odoo' tag AND the environment tag
+          clean_ip=$(doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --format "Name,PublicIPv4,Tags" --no-header | \
+            grep "odoo" | grep "${{ inputs.environment }}" | awk '{print $2}' | head -n1)
 
           if [ -z "$clean_ip" ]; then
-            echo "::error::No active droplets found with tag 'odoo'"
+            echo "::error::No active droplets found with both 'odoo' and '${{ inputs.environment }}' tags"
+            echo "Available droplets:"
+            doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --format "Name,PublicIPv4,Tags"
             exit 1
           fi
 
           rm -f ansible/inventory/*
           mkdir -p ansible/inventory
-          echo "[odoo]" > ansible/inventory/production.ini
-          echo "$clean_ip ansible_user=root" >> ansible/inventory/production.ini
+          echo "[odoo]" > ansible/inventory/${{ inputs.environment }}.ini
+          echo "$clean_ip ansible_user=root" >> ansible/inventory/${{ inputs.environment }}.ini
           echo "Using IP: $clean_ip"
 
       - name: Setup Python
@@ -63,6 +77,7 @@ jobs:
       - name: Run Ansible Playbook
         working-directory: ./ansible
         env:
+          ENVIRONMENT: ${{ inputs.environment }}
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           DB_HOST: ${{ vars.DB_HOST }}
@@ -77,12 +92,12 @@ jobs:
           PG_URI: postgresql://${{ vars.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ vars.DB_HOST }}:${{ vars.DB_PORT }}/${{ vars.DB_NAME }}
         run: |
           ANSIBLE_FORCE_COLOR=1 ansible-playbook \
-            -i inventory/production.ini \
+            -i inventory/${{ inputs.environment }}.ini \
             playbooks/deploy-odoo.yml \
             --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ vars.GITHUB_USER }} openai_api_key=$OPENAI_API_KEY"
 
       - name: Show container logs on failure
         if: ${{ failure() }}
         run: |
-          ip=$(grep -Eo '[0-9.]+' ansible/inventory/production.ini)
-          ssh -o StrictHostKeyChecking=no root@$ip "cd /home/odoo && docker-compose logs"
+          ip=$(grep -Eo '[0-9.]+' ansible/inventory/${{ inputs.environment }}.ini)
+          ssh -o StrictHostKeyChecking=no root@$ip "cd /home/odoo/${{ inputs.environment }} && docker-compose logs"

@@ -6,8 +6,9 @@ on:
       - main
 
 jobs:
-  deploy:
+  deploy-dev:
     runs-on: ubuntu-latest
+    environment: dev
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -27,10 +28,210 @@ jobs:
 
       - name: Determine Droplet IP
         run: |
-          clean_ip=$(doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --tag-name odoo --format PublicIPv4 --no-header | head -n1)
+          # Look for droplets with both 'odoo' tag AND 'dev' tag
+          clean_ip=$(doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --format "Name,PublicIPv4,Tags" --no-header | \
+            grep "odoo" | grep "dev" | awk '{print $2}' | head -n1)
 
           if [ -z "$clean_ip" ]; then
-            echo "::warning::No active droplets found with tag 'odoo'. This is normal if initial deployment hasn't run yet."
+            echo "::warning::No active droplets found with both 'odoo' and 'dev' tags. This is normal if initial deployment hasn't run yet."
+            echo "Available droplets:"
+            doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --format "Name,PublicIPv4,Tags"
+            # Create empty inventory to avoid ansible errors
+            mkdir -p ansible/inventory
+            echo "[odoo]" > ansible/inventory/dev.ini
+            echo "# No droplets found" >> ansible/inventory/dev.ini
+            exit 0
+          fi
+
+          rm -f ansible/inventory/*
+          mkdir -p ansible/inventory
+          echo "[odoo]" > ansible/inventory/dev.ini
+          echo "$clean_ip ansible_user=root" >> ansible/inventory/dev.ini
+          echo "Using IP: $clean_ip"
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Ansible + Collections
+        run: |
+          pip install ansible
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Check if inventory has valid IP
+        id: check-inventory
+        run: |
+          if grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' ansible/inventory/dev.ini; then
+            echo "has-ip=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-ip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Update Playbook
+        if: steps.check-inventory.outputs.has-ip == 'true'
+        working-directory: ./ansible
+        env:
+          ENVIRONMENT: dev
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DB_HOST: ${{ vars.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT }}
+          DB_USER: ${{ vars.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ vars.DB_NAME }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          ODOO_DB: ${{ vars.ODOO_DB }}
+          ODOO_USERNAME: ${{ vars.ODOO_USERNAME }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+          ANSIBLE_DISPLAY_SKIPPED_HOSTS: false
+        run: |
+          ANSIBLE_FORCE_COLOR=1 ansible-playbook \
+            -i inventory/dev.ini \
+            playbooks/update-odoo.yml \
+            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ vars.GITHUB_USER }} openai_api_key=$OPENAI_API_KEY"
+
+      - name: Show container logs on failure
+        if: ${{ failure() && steps.check-inventory.outputs.has-ip == 'true' }}
+        run: |
+          ip=$(grep -Eo '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' ansible/inventory/dev.ini)
+          ssh -o StrictHostKeyChecking=no root@$ip "cd /home/odoo/dev && docker-compose logs"
+
+      - name: Skip deployment if no droplet
+        if: steps.check-inventory.outputs.has-ip == 'false'
+        run: |
+          echo "Skipping deployment - no dev droplet found. Run the Configure Deployment workflow first."
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: deploy-dev
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Install doctl
+        run: |
+          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.104.0/doctl-1.104.0-linux-amd64.tar.gz | tar -xzv
+          sudo mv doctl /usr/local/bin
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Determine Droplet IP
+        run: |
+          # Look for droplets with both 'odoo' tag AND 'staging' tag
+          clean_ip=$(doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --format "Name,PublicIPv4,Tags" --no-header | \
+            grep "odoo" | grep "staging" | awk '{print $2}' | head -n1)
+
+          if [ -z "$clean_ip" ]; then
+            echo "::warning::No active droplets found with both 'odoo' and 'staging' tags. This is normal if initial deployment hasn't run yet."
+            echo "Available droplets:"
+            doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --format "Name,PublicIPv4,Tags"
+            # Create empty inventory to avoid ansible errors
+            mkdir -p ansible/inventory
+            echo "[odoo]" > ansible/inventory/staging.ini
+            echo "# No droplets found" >> ansible/inventory/staging.ini
+            exit 0
+          fi
+
+          rm -f ansible/inventory/*
+          mkdir -p ansible/inventory
+          echo "[odoo]" > ansible/inventory/staging.ini
+          echo "$clean_ip ansible_user=root" >> ansible/inventory/staging.ini
+          echo "Using IP: $clean_ip"
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Ansible + Collections
+        run: |
+          pip install ansible
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Check if inventory has valid IP
+        id: check-inventory
+        run: |
+          if grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' ansible/inventory/staging.ini; then
+            echo "has-ip=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-ip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Update Playbook
+        if: steps.check-inventory.outputs.has-ip == 'true'
+        working-directory: ./ansible
+        env:
+          ENVIRONMENT: staging
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DB_HOST: ${{ vars.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT }}
+          DB_USER: ${{ vars.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ vars.DB_NAME }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          ODOO_DB: ${{ vars.ODOO_DB }}
+          ODOO_USERNAME: ${{ vars.ODOO_USERNAME }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+          ANSIBLE_DISPLAY_SKIPPED_HOSTS: false
+        run: |
+          ANSIBLE_FORCE_COLOR=1 ansible-playbook \
+            -i inventory/staging.ini \
+            playbooks/update-odoo.yml \
+            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ vars.GITHUB_USER }} openai_api_key=$OPENAI_API_KEY"
+
+      - name: Show container logs on failure
+        if: ${{ failure() && steps.check-inventory.outputs.has-ip == 'true' }}
+        run: |
+          ip=$(grep -Eo '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' ansible/inventory/staging.ini)
+          ssh -o StrictHostKeyChecking=no root@$ip "cd /home/odoo/staging && docker-compose logs"
+
+      - name: Skip deployment if no droplet
+        if: steps.check-inventory.outputs.has-ip == 'false'
+        run: |
+          echo "Skipping deployment - no staging droplet found. Run the Configure Deployment workflow first."
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: deploy-staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Install doctl
+        run: |
+          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.104.0/doctl-1.104.0-linux-amd64.tar.gz | tar -xzv
+          sudo mv doctl /usr/local/bin
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Determine Droplet IP
+        run: |
+          # Look for droplets with both 'odoo' tag AND 'production' tag
+          clean_ip=$(doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --format "Name,PublicIPv4,Tags" --no-header | \
+            grep "odoo" | grep "production" | awk '{print $2}' | head -n1)
+
+          if [ -z "$clean_ip" ]; then
+            echo "::warning::No active droplets found with both 'odoo' and 'production' tags. This is normal if initial deployment hasn't run yet."
+            echo "Available droplets:"
+            doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --format "Name,PublicIPv4,Tags"
             # Create empty inventory to avoid ansible errors
             mkdir -p ansible/inventory
             echo "[odoo]" > ansible/inventory/production.ini
@@ -67,6 +268,7 @@ jobs:
         if: steps.check-inventory.outputs.has-ip == 'true'
         working-directory: ./ansible
         env:
+          ENVIRONMENT: production
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           DB_HOST: ${{ vars.DB_HOST }}
@@ -89,9 +291,9 @@ jobs:
         if: ${{ failure() && steps.check-inventory.outputs.has-ip == 'true' }}
         run: |
           ip=$(grep -Eo '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' ansible/inventory/production.ini)
-          ssh -o StrictHostKeyChecking=no root@$ip "cd /home/odoo && docker-compose logs"
+          ssh -o StrictHostKeyChecking=no root@$ip "cd /home/odoo/production && docker-compose logs"
 
       - name: Skip deployment if no droplet
         if: steps.check-inventory.outputs.has-ip == 'false'
         run: |
-          echo "Skipping deployment - no droplet found. Run the Configure Deployment workflow first."
+          echo "Skipping deployment - no production droplet found. Run the Configure Deployment workflow first."

@@ -3,6 +3,15 @@ name: Destroy Infrastructure
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
       action:
         description: 'Terraform action'
         required: true
@@ -14,6 +23,7 @@ on:
 jobs:
   terraform-destroy:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -31,6 +41,7 @@ jobs:
         run: |
           cat <<EOF > vars.auto.tfvars
           do_token = "${{ secrets.DO_TOKEN }}"
+          environment = "${{ inputs.environment }}"
           ssh_public_key = <<EOTPUB
           ${{ secrets.SSH_PUBLIC_KEY }}
           EOTPUB
@@ -53,3 +64,30 @@ jobs:
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
         run: terraform destroy -auto-approve
+
+      - name: Clean up DNS records
+        if: always()
+        run: |
+          case "${{ inputs.environment }}" in
+            "production")
+              HOST_NAME="odoo"
+              ;;
+            "staging")
+              HOST_NAME="odoo-staging"
+              ;;
+            "dev")
+              HOST_NAME="odoo-dev"
+              ;;
+          esac
+          
+          echo "Cleaning up DNS record for: $HOST_NAME"
+          
+          curl -s -u "${{ secrets.NAMECOM_USERNAME }}:${{ secrets.NAMECOM_TOKEN }}" \
+            "https://api.name.com/v4/domains/kajande.com/records" | \
+            jq -r '.records[] | select(.host=="'$HOST_NAME'" and .type=="A") | .id' | \
+            while read record_id; do
+              echo "Deleting DNS record $record_id"
+              curl -X DELETE \
+                -u "${{ secrets.NAMECOM_USERNAME }}:${{ secrets.NAMECOM_TOKEN }}" \
+                "https://api.name.com/v4/domains/kajande.com/records/$record_id"
+            done
