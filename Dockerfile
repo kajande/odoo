@@ -57,6 +57,11 @@ RUN apt-get update && apt-get install -y \
     poppler-utils && \
     rm -rf /var/lib/apt/lists/*
 
+# Create log directory with proper permissions BEFORE Python installation
+RUN mkdir -p /var/log/odoo && \
+    chown -R odoo:odoo /var/log/odoo && \
+    chmod -R 755 /var/log/odoo
+
 # Install Python dependencies
 RUN --mount=type=cache,target=/root/.cache \
     set -x && \

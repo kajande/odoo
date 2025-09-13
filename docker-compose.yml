@@ -49,12 +49,19 @@ services:
       - ./addons/oca/rest-framework:/mnt/oca-rest-framework
       - ./addons/oca/web-api:/mnt/oca-web-api
       - ./addons/oca/dms:/mnt/oca-dms
-      - ./logs:/var/log/odoo
+      - ./logs:/var/log/odoo  # Mount logs directory for persistence
       # Mount the setup script
       - ./setup_odoo_modules.sh:/mnt/extra-addons/setup_odoo_modules.sh:ro
     tty: true
     stdin_open: true
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        mode: "non-blocking"
+        tag: "odoo"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8069/web/health"]
       interval: 30s

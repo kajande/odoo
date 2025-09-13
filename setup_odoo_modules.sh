@@ -53,7 +53,7 @@ module_exists() {
         return 0
     fi
     
-    # Check in custom mount locations (add all your paths)
+    # Check in custom mount locations
     local paths=(
         "/mnt/setup_odoo"
         "/mnt/social_media" 
@@ -90,8 +90,7 @@ install_module() {
         --stop-after-init \
         --config="$ODOO_CONFIG" \
         --without-demo=all \
-        --log-level=warn \
-        --logfile=/var/log/odoo/module_setup.log \
+        --log-level=info \
         --no-http \
         --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_media,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms"; then
         echo "✅ Successfully installed: $module"
@@ -152,10 +151,12 @@ SELECT
     CASE 
         WHEN state = 'installed' THEN '✅'
         WHEN state = 'uninstalled' THEN '❌'
-        ELSE '⚠️ '
+        WHEN state = 'to install' THEN '⏳'
+        WHEN state = 'to upgrade' THEN '🔄'
+        ELSE '❓'
     END as status
 FROM ir_module_module 
-WHERE name IN ('contacts', 'account', 'social_api', 'fast_service', 'setup_odoo')
+WHERE name IN ('contacts', 'account', 'social_api', 'fast_service', 'setup_odoo', 'cleanup_assets', 'cleanup_modules', 'setup_admin')
 ORDER BY name;
 EOF
 }
@@ -206,7 +207,7 @@ main() {
             --config="$ODOO_CONFIG" \
             --without-demo=all \
             --log-level=warn \
-            --logfile=/var/log/odoo/db_init.log \
+            --logfile=/dev/stdout \
             --no-http \
             --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_media,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms"
         
@@ -238,7 +239,7 @@ main() {
         --config="$ODOO_CONFIG" \
         --without-demo=all \
         --log-level=warn \
-        --logfile=/var/log/odoo/final_update.log \
+        --logfile=/dev/stdout \
         --no-http \
         --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_media,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms" || echo "⚠️  Final update had issues - but continuing..."
     

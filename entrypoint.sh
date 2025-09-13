@@ -15,7 +15,7 @@ echo_error() { echo -e "${RED}❌ $1${NC}"; }
 
 echo "=== Starting Odoo Configuration Generation ==="
 
-# Set defaults (keeping your original defaults)
+# Set defaults
 DB_HOST=${DB_HOST:-"db"}
 DB_PORT=${DB_PORT:-"5432"}
 DB_USER=${DB_USER:-"odoo"}
@@ -25,12 +25,37 @@ ODOO_PASSWORD=${ODOO_PASSWORD:-"kajande"}
 
 echo "Using DB_HOST=${DB_HOST}, DB_PORT=${DB_PORT}"
 
-# Create config file (keeping your original config structure)
+# ============= Fix log directory permissions FIRST =============
+echo "=== Fixing log directory permissions ==="
+echo "Ensuring /var/log/odoo is owned by odoo user..."
+mkdir -p /var/log/odoo
+chown -R odoo:odoo /var/log/odoo
+chmod -R 755 /var/log/odoo
+echo "Log directory permissions fixed."
+
+# ============= Create symbolic link for Docker logs =============
+echo "=== Creating symbolic link for Docker logs ==="
+# Remove existing log file if it exists
+rm -f /var/log/odoo/odoo.log
+# Create symbolic link to stdout for Docker logging
+ln -sf /dev/stdout /var/log/odoo/odoo.log
+chown -h odoo:odoo /var/log/odoo/odoo.log
+echo "Symbolic link created for Docker logs"
+
+# ============= Fix filestore permissions =============
+echo "=== Fixing filestore permissions ==="
+echo "Ensuring /var/lib/odoo is owned by odoo user..."
+chown -R odoo:odoo /var/lib/odoo
+chmod -R 755 /var/lib/odoo
+echo "Filestore permissions fixed."
+
+# Create config file - REMOVE logfile directive to avoid conflicts
 echo "[options]" > /etc/odoo/odoo.conf
 echo "addons_path = /mnt/social_media,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/setup_odoo,/mnt/oca-dms" >> /etc/odoo/odoo.conf
 echo "data_dir = /var/lib/odoo" >> /etc/odoo/odoo.conf
 echo "admin_passwd = ${ODOO_PASSWORD}" >> /etc/odoo/odoo.conf
-echo "logfile = /var/log/odoo/odoo.log" >> /etc/odoo/odoo.conf
+# REMOVED: logfile directive - using symbolic link instead
+echo "log_handler = [':INFO']" >> /etc/odoo/odoo.conf
 echo "db_host = ${DB_HOST}" >> /etc/odoo/odoo.conf
 echo "db_port = ${DB_PORT}" >> /etc/odoo/odoo.conf
 echo "db_user = ${DB_USER}" >> /etc/odoo/odoo.conf
@@ -47,19 +72,6 @@ chmod 644 /etc/odoo/odoo.conf
 
 echo "Generated config:"
 cat /etc/odoo/odoo.conf
-
-# ============= Fix filestore permissions =============
-echo "=== Fixing filestore permissions ==="
-echo "Ensuring /var/lib/odoo is owned by odoo user..."
-chown -R odoo:odoo /var/lib/odoo
-chmod -R 755 /var/lib/odoo
-echo "Filestore permissions fixed."
-
-# ============= Create log directory =============
-echo "=== Creating log directory ==="
-mkdir -p /var/log/odoo
-chown -R odoo:odoo /var/log/odoo
-echo "Log directory created and permissions set."
 
 # ============= Module Setup Integration =============
 # Function to run as odoo user
