@@ -4,6 +4,7 @@ addons/xyz
 libs/langgraph/
 libs/mcp-server-demo/
 import_xml.rng
+odoo.txt
 mcp-odoo.txt
 terraform.txt
 ansible.txt

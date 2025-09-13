@@ -39,6 +39,8 @@ services:
       - ODOO_PROXY_MODE=${ODOO_PROXY_MODE:-False}
       - DB_MAXCONN=${DB_MAXCONN:-64}
       - DB_TEMPLATE=${DB_TEMPLATE:-template0}
+      # Module setup control
+      - SKIP_MODULE_SETUP=${SKIP_MODULE_SETUP:-false}
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
@@ -48,6 +50,8 @@ services:
       - ./addons/oca/web-api:/mnt/oca-web-api
       - ./addons/oca/dms:/mnt/oca-dms
       - ./logs:/var/log/odoo
+      # Mount the setup script
+      - ./setup_odoo_modules.sh:/mnt/extra-addons/setup_odoo_modules.sh:ro
     tty: true
     stdin_open: true
     restart: unless-stopped
@@ -57,6 +61,50 @@ services:
       timeout: 10s
       retries: 10
       start_period: 120s
+
+  # Utility service for running module setup only
+  odoo-setup:
+    build:
+      context: .
+      args:
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        HOST_UID: ${UID:-1000}
+        HOST_GID: ${GID:-1000}
+        DB_HOST: ${DB_HOST:-db}
+        DB_PORT: ${DB_PORT:-5432}
+        DB_USER: ${DB_USER:-odoo}
+        DB_PASSWORD: ${DB_PASSWORD}
+        DB_NAME: ${DB_NAME:-odoo}
+        PGPASSWORD: ${PGPASSWORD}
+        ODOO_DB: ${ODOO_DB:-odoo}
+        ODOO_USERNAME: ${ODOO_USERNAME:-admin}
+        ODOO_PASSWORD: ${ODOO_PASSWORD}
+        PG_URI: ${PG_URI}
+    environment:
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-odoo}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME:-odoo}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PGPASSWORD=${PGPASSWORD}
+      - ODOO_DB=${ODOO_DB:-odoo}
+      - ODOO_USERNAME=${ODOO_USERNAME:-admin}
+      - ODOO_PASSWORD=${ODOO_PASSWORD}
+      - PG_URI=${PG_URI}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - odoo-web-data:/var/lib/odoo
+      - ./config:/etc/odoo
+      - ./addons/setup_odoo:/mnt/setup_odoo
+      - ./addons/social_media:/mnt/social_media
+      - ./addons/oca/rest-framework:/mnt/oca-rest-framework
+      - ./addons/oca/web-api:/mnt/oca-web-api
+      - ./addons/oca/dms:/mnt/oca-dms
+      - ./logs:/var/log/odoo
+      - ./setup_odoo_modules.sh:/mnt/extra-addons/setup_odoo_modules.sh:ro
+    profiles: ["tools"]  # Only run when specifically requested
+    command: ["setup-modules-only"]
 
   mcp:
     build:

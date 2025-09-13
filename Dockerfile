@@ -39,16 +39,18 @@ RUN apt-get update && \
     postgresql-client \
     git \
     gettext-base \
-    gosu && \
+    gosu \
+    curl \
+    locales && \
     rm -rf /var/lib/apt/lists/*
 
-# Install LaTeX (for PDF generation)
-# RUN apt-get update && apt-get install -y --no-install-recommends \
-#     texlive-latex-base \
-#     texlive-latex-extra \
-#     texlive-fonts-recommended \
-#     texlive-xetex && \
-#     rm -rf /var/lib/apt/lists/*
+# Fix locale settings
+RUN echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
+    locale-gen en_US.UTF-8
+
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
 
 # Install PDF utilities
 RUN apt-get update && apt-get install -y \
@@ -76,12 +78,13 @@ RUN mkdir -p /mnt/extra-addons && \
 RUN mkdir -p /mnt && \
     chown -R odoo:odoo /mnt
 
-# Copy addons and entrypoint script (no template needed)
+# Copy addons, scripts and entrypoint
 COPY --chown=odoo:odoo ./addons /mnt/extra-addons
+COPY ./setup_odoo_modules.sh /setup_odoo_modules.sh
 COPY ./entrypoint.sh /entrypoint.sh
 
-# Make entrypoint script executable
-RUN chmod +x /entrypoint.sh
+# Make scripts executable
+RUN chmod +x /entrypoint.sh /setup_odoo_modules.sh
 
 # Don't switch to odoo user yet - let entrypoint handle it
 # USER odoo
@@ -89,5 +92,5 @@ RUN chmod +x /entrypoint.sh
 # Set the entrypoint (runs as root, then switches to odoo user)
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Run Odoo
-CMD ["odoo", "-c", "/etc/odoo/odoo.conf", "-i", "setup_odoo"]
+# Default command - now simplified since setup happens in entrypoint
+CMD ["odoo", "-c", "/etc/odoo/odoo.conf"]
