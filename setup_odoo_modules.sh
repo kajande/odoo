@@ -13,6 +13,7 @@ ODOO_CONFIG="/etc/odoo/odoo.conf"
 # Core modules to install (in dependency order)
 CORE_MODULES=(
     "contacts"
+    "product"
     "account"
 )
 
