@@ -57,7 +57,7 @@ module_exists() {
     # Check in custom mount locations
     local paths=(
         "/mnt/setup_odoo"
-        "/mnt/social_media" 
+        "/mnt/social_api" 
         "/mnt/oca-rest-framework"
         "/mnt/oca-web-api"
         "/mnt/oca-dms"
@@ -93,7 +93,7 @@ install_module() {
         --without-demo=all \
         --log-level=info \
         --no-http \
-        --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_media,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms"; then
+        --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_api,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms"; then
         echo "✅ Successfully installed: $module"
         return 0
     else
@@ -180,7 +180,7 @@ check_modules_available() {
     
     if [ ${#missing_modules[@]} -gt 0 ]; then
         echo "❌ Missing modules: ${missing_modules[*]}"
-        echo "💡 Available paths: /usr/lib/python3/dist-packages/odoo/addons, /mnt/setup_odoo, /mnt/social_media, /mnt/oca-rest-framework, /mnt/oca-web-api, /mnt/oca-dms"
+        echo "💡 Available paths: /usr/lib/python3/dist-packages/odoo/addons, /mnt/setup_odoo, /mnt/social_api, /mnt/oca-rest-framework, /mnt/oca-web-api, /mnt/oca-dms"
         return 1
     fi
     
@@ -210,7 +210,7 @@ main() {
             --log-level=warn \
             --logfile=/dev/stdout \
             --no-http \
-            --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_media,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms"
+            --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_api,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms"
         
         echo "✅ Database initialized"
     fi
@@ -242,7 +242,7 @@ main() {
         --log-level=warn \
         --logfile=/dev/stdout \
         --no-http \
-        --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_media,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms" || echo "⚠️  Final update had issues - but continuing..."
+        --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_api,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms" || echo "⚠️  Final update had issues - but continuing..."
     
     # Verify installation
     verify_module_installation

@@ -45,7 +45,7 @@ services:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
       - ./addons/setup_odoo:/mnt/setup_odoo
-      - ./addons/social_media:/mnt/social_media
+      - ./addons/social_api:/mnt/social_api
       - ./addons/oca/rest-framework:/mnt/oca-rest-framework
       - ./addons/oca/web-api:/mnt/oca-web-api
       - ./addons/oca/dms:/mnt/oca-dms
@@ -104,7 +104,7 @@ services:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
       - ./addons/setup_odoo:/mnt/setup_odoo
-      - ./addons/social_media:/mnt/social_media
+      - ./addons/social_api:/mnt/social_api
       - ./addons/oca/rest-framework:/mnt/oca-rest-framework
       - ./addons/oca/web-api:/mnt/oca-web-api
       - ./addons/oca/dms:/mnt/oca-dms

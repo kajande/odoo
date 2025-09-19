@@ -18,9 +18,6 @@
 [submodule "addons/x"]
 	path = addons/x
 	url = https://github.com/kajande/x.git
-[submodule "addons/social_media"]
-	path = addons/social_media
-	url = https://github.com/kajande/social_media.git
 [submodule "addons/setup_odoo"]
 	path = addons/setup_odoo
 	url = https://github.com/kajande/setup_odoo.git
@@ -31,3 +28,6 @@
 	path = libs/mcp-odoo
 	url = https://github.com/kajande/mcp-odoo.git
 	branch = odoo
+[submodule "addons/social_api"]
+	path = addons/social_api
+	url = https://github.com/kajande/social_api.git
