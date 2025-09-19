@@ -36,7 +36,7 @@ docker exec -it odoo-odoo-1 odoo shell -d odoo
 ### clean assets
 
 ```bash
-docker exec -it odoo_odoo_1 odoo shell
+docker exec -it dev-odoo-1 odoo shell
 ```
 
 ```python
