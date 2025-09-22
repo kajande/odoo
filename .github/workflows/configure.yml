@@ -40,14 +40,32 @@ jobs:
           curl -sL https://github.com/digitalocean/doctl/releases/download/v1.104.0/doctl-1.104.0-linux-amd64.tar.gz | tar -xzv
           sudo mv doctl /usr/local/bin
 
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.5.4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          terraform_version: 1.12.2
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Retrieve SSH Key from Terraform Remote State
+        working-directory: ./terraform
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+        run: |
+          terraform init -input=false -reconfigure
+
+          SSH_KEY=$(terraform output -raw ssh_private_key)
+
+          if [ -z "$SSH_KEY" ]; then
+            echo "::error::No SSH key found in Terraform remote state"
+            exit 1
+          fi
+
+          echo "$SSH_KEY" > /tmp/ssh_key
+          chmod 600 /tmp/ssh_key
+          echo "SSH_KEY_FILE=/tmp/ssh_key" >> $GITHUB_ENV
 
       - name: Determine Droplet IP
         run: |
-          # Look for droplets with both 'odoo' tag AND the environment tag
           clean_ip=$(doctl -t ${{ secrets.DO_TOKEN }} compute droplet list --format "Name,PublicIPv4,Tags" --no-header | \
             grep "odoo" | grep "${{ inputs.environment }}" | awk '{print $2}' | head -n1)
 
@@ -63,6 +81,14 @@ jobs:
           echo "[odoo]" > ansible/inventory/${{ inputs.environment }}.ini
           echo "$clean_ip ansible_user=root" >> ansible/inventory/${{ inputs.environment }}.ini
           echo "Using IP: $clean_ip"
+          echo "CLEAN_IP=$clean_ip" >> $GITHUB_ENV
+
+      - name: Setup SSH with Terraform Key
+        run: |
+          eval $(ssh-agent -s)
+          ssh-add $SSH_KEY_FILE
+          mkdir -p ~/.ssh
+          ssh-keyscan -H $CLEAN_IP >> ~/.ssh/known_hosts
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -91,7 +117,7 @@ jobs:
           ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
           PG_URI: postgresql://${{ vars.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ vars.DB_HOST }}:${{ vars.DB_PORT }}/${{ vars.DB_NAME }}
         run: |
-          ANSIBLE_FORCE_COLOR=1 ansible-playbook \
+          ansible-playbook \
             -i inventory/${{ inputs.environment }}.ini \
             playbooks/deploy-odoo.yml \
             --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ vars.GITHUB_USER }} openai_api_key=$OPENAI_API_KEY"
@@ -99,5 +125,4 @@ jobs:
       - name: Show container logs on failure
         if: ${{ failure() }}
         run: |
-          ip=$(grep -Eo '[0-9.]+' ansible/inventory/${{ inputs.environment }}.ini)
-          ssh -o StrictHostKeyChecking=no root@$ip "cd /home/odoo/${{ inputs.environment }} && docker-compose logs"
+          ssh -o StrictHostKeyChecking=no root@$CLEAN_IP "cd /home/odoo/${{ inputs.environment }} && docker-compose logs"

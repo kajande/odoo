@@ -6,12 +6,15 @@ set -e  # Exit on any error
 # Configuration from environment variables
 DB_NAME="${ODOO_DB:-odoo}"
 DB_HOST="${DB_HOST:-db}"
+DB_PORT="${DB_PORT:-5432}"
 DB_USER="${DB_USER:-odoo}"
-DB_PASSWORD="${DB_PASSWORD}"
+DB_PASSWORD="${DB_PASSWORD:-odoo}"
 ODOO_CONFIG="/etc/odoo/odoo.conf"
 
 # Core modules to install (in dependency order)
 CORE_MODULES=(
+    "base"
+    "web"
     "contacts"
     "product"
     "account"
@@ -25,7 +28,7 @@ CUSTOM_MODULES=(
 
 echo "🚀 Starting Odoo module setup..."
 echo "📋 Database: $DB_NAME"
-echo "📋 Config: $ODOO_CONFIG"
+echo "🌐 Host: $DB_HOST:$DB_PORT"
 
 # Function to wait for database
 wait_for_db() {
@@ -33,7 +36,7 @@ wait_for_db() {
     local max_tries=30
     local count=0
     
-    until pg_isready -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; do
+    until PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; do
         count=$((count + 1))
         if [ $count -gt $max_tries ]; then
             echo "❌ Database connection timeout after $max_tries attempts"
@@ -92,8 +95,7 @@ install_module() {
         --config="$ODOO_CONFIG" \
         --without-demo=all \
         --log-level=info \
-        --no-http \
-        --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_api,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms"; then
+        --no-http; then
         echo "✅ Successfully installed: $module"
         return 0
     else
@@ -126,13 +128,13 @@ check_database() {
     echo "🔍 Checking database status..."
     
     # Check if database exists
-    if ! psql -h "$DB_HOST" -U "$DB_USER" -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
+    if ! PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
         echo "📊 Database $DB_NAME does not exist - will be created by Odoo"
         return 1
     fi
     
     # Check if database has been initialized (has ir_module_module table)
-    if psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1 FROM information_schema.tables WHERE table_name='ir_module_module';" | grep -q "1 row"; then
+    if PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1 FROM information_schema.tables WHERE table_name='ir_module_module';" | grep -q "1 row"; then
         echo "✅ Database $DB_NAME is initialized"
         return 0
     else
@@ -145,7 +147,7 @@ check_database() {
 verify_module_installation() {
     echo "🔍 Verifying module installation status..."
     
-    PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" << EOF
+    PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" << EOF
 SELECT 
     name, 
     state,
@@ -157,7 +159,7 @@ SELECT
         ELSE '❓'
     END as status
 FROM ir_module_module 
-WHERE name IN ('contacts', 'account', 'social_api', 'fast_service', 'setup_odoo', 'cleanup_assets', 'cleanup_modules', 'setup_admin')
+WHERE name IN ('contacts', 'account', 'social_api', 'fast_service', 'setup_odoo')
 ORDER BY name;
 EOF
 }
@@ -180,7 +182,6 @@ check_modules_available() {
     
     if [ ${#missing_modules[@]} -gt 0 ]; then
         echo "❌ Missing modules: ${missing_modules[*]}"
-        echo "💡 Available paths: /usr/lib/python3/dist-packages/odoo/addons, /mnt/setup_odoo, /mnt/social_api, /mnt/oca-rest-framework, /mnt/oca-web-api, /mnt/oca-dms"
         return 1
     fi
     
@@ -209,15 +210,10 @@ main() {
             --without-demo=all \
             --log-level=warn \
             --logfile=/dev/stdout \
-            --no-http \
-            --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_api,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms"
+            --no-http
         
         echo "✅ Database initialized"
     fi
-    
-    # Install setup modules first (cleanup, admin setup, etc.)
-    echo "🔧 Installing setup modules..."
-    install_module_with_retry "setup_odoo" || echo "⚠️  setup_odoo installation failed - continuing..."
     
     # Install core modules
     echo "📋 Installing core modules..."
@@ -241,8 +237,7 @@ main() {
         --without-demo=all \
         --log-level=warn \
         --logfile=/dev/stdout \
-        --no-http \
-        --addons-path="/usr/lib/python3/dist-packages/odoo/addons,/mnt/setup_odoo,/mnt/social_api,/mnt/oca-rest-framework,/mnt/oca-web-api,/mnt/oca-dms" || echo "⚠️  Final update had issues - but continuing..."
+        --no-http || echo "⚠️  Final update had issues - but continuing..."
     
     # Verify installation
     verify_module_installation

@@ -31,33 +31,92 @@ jobs:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.6.6
+      - name: Validate DigitalOcean Token
+        run: |
+          if [ -z "${{ secrets.DO_TOKEN }}" ]; then
+            echo "❌ DO_TOKEN secret is missing or empty"
+            exit 1
+          fi
+          
+          response=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
+            "https://api.digitalocean.com/v2/account")
+          
+          if [ "$response" != "200" ]; then
+            echo "❌ DigitalOcean token is invalid (HTTP $response)"
+            exit 1
+          fi
+          
+          echo "✅ DigitalOcean token is valid"
 
-      - name: Generate .auto.tfvars file
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.2
+          # This configures the credential file for Terraform CLI
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Generate secrets.auto.tfvars file
         working-directory: ./terraform
         run: |
-          cat <<EOF > vars.auto.tfvars
-          do_token = "${{ secrets.DO_TOKEN }}"
+          cat <<'EOF' > secrets.auto.tfvars
           environment = "${{ inputs.environment }}"
-          ssh_public_key = <<EOTPUB
-          ${{ secrets.SSH_PUBLIC_KEY }}
-          EOTPUB
-          ssh_private_key = <<EOT
-          ${{ secrets.SSH_PRIVATE_KEY }}
-          EOT
+          domain_name = "kajande.com"
+          do_token = "${{ secrets.DO_TOKEN }}"
           namecom_username = "${{ secrets.NAMECOM_USERNAME }}"
           namecom_token = "${{ secrets.NAMECOM_TOKEN }}"
-          domain_name = "kajande.com"
           EOF
+          
+          echo "✅ secrets.auto.tfvars file generated"
+          echo "File contains $(wc -l < secrets.auto.tfvars) lines"
 
       - name: Terraform Init (Cloud)
         working-directory: ./terraform
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
         run: terraform init
+
+      - name: Clean up orphaned resources from state before destroy
+        working-directory: ./terraform
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+        run: |
+          echo "=== Checking for orphaned reserved IP resources before destroy ==="
+          
+          # Get all reserved IP resources from state
+          RESERVED_IP_RESOURCES=$(terraform state list | grep reserved_ip || echo "")
+          
+          if [ -n "$RESERVED_IP_RESOURCES" ]; then
+            echo "Found reserved IP resources in state:"
+            echo "$RESERVED_IP_RESOURCES"
+            
+            # Check each one against DigitalOcean API
+            echo "$RESERVED_IP_RESOURCES" | while read resource; do
+              if [ -n "$resource" ]; then
+                echo "Checking resource: $resource"
+                
+                # Get the IP from the state
+                IP=$(terraform state show "$resource" 2>/dev/null | grep -E "ip_address.*=" | head -1 | sed 's/.*= "\([^"]*\)".*/\1/' || echo "")
+                
+                if [ -n "$IP" ]; then
+                  echo "Found IP $IP in resource $resource"
+                  
+                  # Check if it exists in DigitalOcean
+                  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                    -H "Authorization: Bearer ${{ secrets.DO_TOKEN }}" \
+                    "https://api.digitalocean.com/v2/reserved_ips/$IP")
+                  
+                  if [ "$HTTP_CODE" = "404" ]; then
+                    echo "❌ IP $IP not found in DigitalOcean - removing from state"
+                    terraform state rm "$resource" || echo "Failed to remove $resource"
+                  else
+                    echo "✅ IP $IP exists in DigitalOcean"
+                  fi
+                fi
+              fi
+            done
+          else
+            echo "No reserved IP resources found in state"
+          fi
 
       - name: Terraform Destroy
         working-directory: ./terraform
@@ -91,3 +150,10 @@ jobs:
                 -u "${{ secrets.NAMECOM_USERNAME }}:${{ secrets.NAMECOM_TOKEN }}" \
                 "https://api.name.com/v4/domains/kajande.com/records/$record_id"
             done
+
+      - name: Cleanup sensitive files
+        if: always()
+        working-directory: ./terraform
+        run: |
+          rm -f secrets.auto.tfvars
+          echo "✅ Cleaned up secrets.auto.tfvars file"

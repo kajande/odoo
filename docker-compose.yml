@@ -131,7 +131,7 @@ services:
       - ODOO_TIMEOUT=30
       - ODOO_VERIFY_SSL=0
       
-      # Database settings (THESE WERE MISSING)
+      # Database settings
       - DB_HOST=${DB_HOST:-db}
       - DB_PORT=${DB_PORT:-5432}
       - DB_USER=${DB_USER:-odoo}
