@@ -127,4 +127,4 @@ jobs:
       - name: Cleanup sensitive files
         if: always()
         run: |
-          rm -f terraform/environments/${{ inputs.environment }}/secrets.auto.tfvars
+          rm -f terraform/terraform.auto.tfvars

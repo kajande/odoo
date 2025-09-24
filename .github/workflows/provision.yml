@@ -21,8 +21,8 @@ on:
           - apply
 
 jobs:
-  validate:
-    name: Validate Configuration
+  validate-and-deploy:
+    name: Validate and Deploy Infrastructure
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     
@@ -51,46 +51,6 @@ jobs:
       - name: Terraform Validate
         working-directory: ./terraform
         run: terraform validate
-
-      - name: Terraform Plan
-        working-directory: ./terraform
-        env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-        run: terraform plan -out=tfplan
-
-      - name: Upload plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-plan-${{ inputs.environment }}
-          path: terraform/tfplan
-
-  deploy:
-    name: Deploy Infrastructure
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    needs: validate
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          token: ${{ secrets.GIT_TOKEN }}
-
-      - name: Setup Terraform
-        uses: ./.github/actions/terraform-setup
-        with:
-          environment: ${{ inputs.environment }}
-          tf-api-token: ${{ secrets.TF_API_TOKEN }}
-          do-token: ${{ secrets.DO_TOKEN }}
-          namecom-username: ${{ vars.NAMECOM_USERNAME }}
-          namecom-token: ${{ secrets.NAMECOM_TOKEN }}
-
-      - name: Download plan
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-plan-${{ inputs.environment }}
-          path: terraform/
 
       - name: Clean up orphaned resources from state
         working-directory: ./terraform
@@ -135,11 +95,18 @@ jobs:
             echo "No reserved IP resources found in state"
           fi
 
-      - name: Terraform Apply
+      - name: Terraform Plan
         working-directory: ./terraform
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-        run: terraform apply tfplan
+        run: terraform plan
+
+      - name: Terraform Apply
+        if: inputs.action == 'apply'
+        working-directory: ./terraform
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+        run: terraform apply -auto-approve
 
       - name: Output Infrastructure Info
         working-directory: ./terraform
@@ -156,12 +123,11 @@ jobs:
   cleanup:
     name: Cleanup
     runs-on: ubuntu-latest
-    needs: [validate, deploy]
+    needs: validate-and-deploy
     if: always()
     
     steps:
       - name: Cleanup sensitive files
         run: |
-          rm -f terraform/environments/${{ inputs.environment }}/secrets.auto.tfvars
-          rm -f terraform/tfplan
+          rm -f terraform/terraform.auto.tfvars
           rm -f terraform/outputs.json

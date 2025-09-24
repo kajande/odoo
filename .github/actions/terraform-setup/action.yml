@@ -52,11 +52,13 @@ runs:
     - name: Generate terraform variables file
       shell: bash
       run: |
-        mkdir -p terraform/environments/${{ inputs.environment }}
-        cat > terraform/environments/${{ inputs.environment }}/secrets.auto.tfvars << EOF
+        # Create the variables file in the terraform root directory so it gets auto-loaded
+        cat > terraform/terraform.auto.tfvars << EOF
         environment = "${{ inputs.environment }}"
         domain_name = "kajande.com"
         do_token = "${{ inputs.do-token }}"
         namecom_username = "${{ inputs.namecom-username }}"
         namecom_token = "${{ inputs.namecom-token }}"
         EOF
+        
+        echo "✅ Generated terraform.auto.tfvars in terraform/ directory"
