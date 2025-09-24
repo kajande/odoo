@@ -40,6 +40,15 @@ jobs:
           submodules: recursive
           token: ${{ secrets.GIT_TOKEN }}
 
+      - name: Setup Terraform
+        uses: ./.github/actions/terraform-setup
+        with:
+          environment: ${{ inputs.environment }}
+          tf-api-token: ${{ secrets.TF_API_TOKEN }}
+          do-token: ${{ secrets.DO_TOKEN }}
+          namecom-username: ${{ vars.NAMECOM_USERNAME }}
+          namecom-token: ${{ secrets.NAMECOM_TOKEN }}
+
       - name: Setup Ansible
         uses: ./.github/actions/ansible-setup
         with:
