@@ -67,7 +67,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 120s
+      start_period: 600s
 
   # Utility service for running module setup only
   odoo-setup:

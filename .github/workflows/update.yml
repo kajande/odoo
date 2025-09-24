@@ -94,6 +94,7 @@ jobs:
         working-directory: ./ansible
         env:
           ENVIRONMENT: ${{ inputs.environment }}
+          GIT_USER: ${{ vars.GIT_USER }}
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           DB_HOST: ${{ vars.DB_HOST }}
@@ -110,7 +111,7 @@ jobs:
           ANSIBLE_FORCE_COLOR=1 ansible-playbook \
             -i inventories/${{ inputs.environment }}/hosts \
             playbooks/update-odoo.yml \
-            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ vars.GITHUB_USER }} openai_api_key=$OPENAI_API_KEY"
+            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ vars.GIT_USER }} openai_api_key=$OPENAI_API_KEY"
 
       - name: Show container logs on failure
         if: ${{ failure() && steps.check-inventory.outputs.has-ip == 'true' }}
