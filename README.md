@@ -1,46 +1,41 @@
-# odoo
-Kajande Odoo projects and modules
+# Odoo Infrastructure as Code
 
-Fast odoo dev commands:
+This repository contains Terraform and Ansible code for deploying Odoo on DigitalOcean.
 
-### docker start command
-```bash
-docker compose up --build -d && docker attach odoo-odoo-1
-```
+## Structure
 
-### install module
-```bash
-docker exec -it odoo-odoo-1 odoo -i odoo --stop-after-init
-```
+- `.github/workflows/` - GitHub Actions workflows
+- `terraform/` - Infrastructure provisioning
+- `ansible/` - Application deployment
+- `scripts/` - Utility scripts
 
-### update module
-```bash
-docker exec -it odoo-odoo-1 odoo -u odoo --stop-after-init
-```
+## Workflows
 
-### update all modules
-```bash
-docker exec -it odoo-odoo-1 odoo -u all --stop-after-init
-```
+### Provision Infrastructure
+- Deploys DigitalOcean droplets, networking, and DNS
+- Located in `.github/workflows/terraform/provision.yml`
 
-### connect to odoo postgres database
-```bash
-docker exec -it odoo-db-1 psql -U odoo -d odoo
-```
+### Configure Deployment
+- Deploys Odoo application using Ansible
+- Located in `.github/workflows/ansible/deploy.yml`
 
-### connect to odoo shell
-```bash
-docker exec -it odoo-odoo-1 odoo shell -d odoo
-```
+### Update Deployment
+- Updates existing Odoo deployments
+- Located in `.github/workflows/ansible/update.yml`
 
-### clean assets
+### Destroy Infrastructure
+- Tears down infrastructure
+- Located in `.github/workflows/terraform/destroy.yml`
 
-```bash
-docker exec -it dev-odoo-1 odoo shell
-```
+## Usage
 
-```python
-domain = [('res_model','=','ir.ui.view'), ('name','like','assets_')]
-env['ir.attachment'].search(domain).unlink()
-env.cr.commit()
-```
+1. Set up required secrets in GitHub
+2. Run the "Provision Infrastructure" workflow
+3. Run the "Configure Deployment" workflow
+4. Push to main branch for automatic updates
+
+## Environments
+
+- `dev` - Development environment
+- `staging` - Staging environment  
+- `production` - Production environment

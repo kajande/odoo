@@ -1,0 +1,168 @@
+name: Configure Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - production
+          - staging
+          - dev
+      action:
+        description: 'Configuration action'
+        required: true
+        default: 'apply'
+        type: choice
+        options:
+          - apply
+
+env:
+  ANSIBLE_FORCE_COLOR: 1
+  ANSIBLE_HOST_KEY_CHECKING: false
+
+jobs:
+  setup:
+    name: Setup Environment
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      droplet-ip: ${{ steps.droplet-info.outputs.ip }}
+      has-ip: ${{ steps.droplet-info.outputs.has-ip }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Setup Ansible
+        uses: ./.github/actions/ansible-setup
+        with:
+          environment: ${{ inputs.environment }}
+          git-token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Get Droplet IP
+        uses: ./.github/actions/digitalocean
+        with:
+          environment: ${{ inputs.environment }}
+          action: 'get-droplet-ip'
+          do-token: ${{ secrets.DO_TOKEN }}
+        id: droplet-info
+
+      - name: Check if droplet exists
+        if: steps.droplet-info.outputs.has-ip == 'false'
+        run: |
+          echo "❌ No droplet found for environment ${{ inputs.environment }}"
+          exit 1
+
+      - name: Retrieve SSH Key from Terraform Remote State
+        working-directory: ./terraform
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+        run: |
+          terraform init -input=false -reconfigure
+
+          SSH_KEY=$(terraform output -raw ssh_private_key)
+
+          if [ -z "$SSH_KEY" ]; then
+            echo "::error::No SSH key found in Terraform remote state"
+            exit 1
+          fi
+
+          echo "$SSH_KEY" > /tmp/ssh_key
+          chmod 600 /tmp/ssh_key
+
+      - name: Generate Inventory
+        run: |
+          mkdir -p ansible/inventories/${{ inputs.environment }}
+          cat > ansible/inventories/${{ inputs.environment }}/hosts << EOF
+          [odoo]
+          ${{ steps.droplet-info.outputs.ip }} ansible_user=root
+
+          [odoo:vars]
+          ansible_user=root
+          ansible_ssh_private_key_file=/tmp/ssh_key
+          env=${{ inputs.environment }}
+          EOF
+
+      - name: Setup SSH
+        run: |
+          eval $(ssh-agent -s)
+          ssh-add /tmp/ssh_key
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ steps.droplet-info.outputs.ip }} >> ~/.ssh/known_hosts
+
+      - name: Upload SSH key and inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-config-${{ inputs.environment }}
+          path: |
+            /tmp/ssh_key
+            ansible/inventories/${{ inputs.environment }}/hosts
+
+  deploy:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    needs: setup
+    if: needs.setup.outputs.has-ip == 'true'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Setup Ansible
+        uses: ./.github/actions/ansible-setup
+        with:
+          environment: ${{ inputs.environment }}
+          git-token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Download deployment config
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-config-${{ inputs.environment }}
+          path: /tmp/
+
+      - name: Setup SSH key permissions
+        run: |
+          chmod 600 /tmp/ssh_key
+          mkdir -p ~/.ssh
+          ip=$(grep -Eo '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' /tmp/ansible/inventories/${{ inputs.environment }}/hosts)
+          ssh-keyscan -H $ip >> ~/.ssh/known_hosts
+
+      - name: Run Ansible Playbook
+        working-directory: ./ansible
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DB_HOST: ${{ vars.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT }}
+          DB_USER: ${{ vars.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ vars.DB_NAME }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          ODOO_DB: ${{ vars.ODOO_DB }}
+          ODOO_USERNAME: ${{ vars.ODOO_USERNAME }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+          PG_URI: postgresql://${{ vars.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ vars.DB_HOST }}:${{ vars.DB_PORT }}/${{ vars.DB_NAME }}
+        run: |
+          ansible-playbook \
+            -i /tmp/ansible/inventories/${{ inputs.environment }}/hosts \
+            playbooks/deploy-odoo.yml \
+            --private-key /tmp/ssh_key \
+            --extra-vars "ansible_ssh_retries=5 ansible_ssh_timeout=30 github_token=$GIT_TOKEN github_user=${{ vars.GITHUB_USER }} openai_api_key=$OPENAI_API_KEY"
+
+      - name: Show container logs on failure
+        if: failure()
+        run: |
+          ip=$(grep -Eo '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' /tmp/ansible/inventories/${{ inputs.environment }}/hosts)
+          ssh -i /tmp/ssh_key -o StrictHostKeyChecking=no root@$ip "cd /home/odoo/${{ inputs.environment }} && docker-compose logs"
