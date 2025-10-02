@@ -24,10 +24,6 @@
 [submodule "addons/oca/dms"]
 	path = addons/oca/dms
 	url = https://github.com/OCA/dms.git
-[submodule "libs/mcp-odoo"]
-	path = libs/mcp-odoo
-	url = https://github.com/kajande/mcp-odoo.git
-	branch = odoo
 [submodule "addons/social_api"]
 	path = addons/social_api
 	url = https://github.com/kajande/social_api.git

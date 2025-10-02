@@ -22,10 +22,3 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
-  mcp:
-    depends_on:
-      odoo:
-        condition: service_healthy
-      db:
-        condition: service_healthy

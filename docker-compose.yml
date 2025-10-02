@@ -113,55 +113,6 @@ services:
     profiles: ["tools"]  # Only run when specifically requested
     command: ["setup-modules-only"]
 
-  mcp:
-    build:
-      context: ./libs/mcp-odoo
-      dockerfile: Dockerfile
-    depends_on:
-      odoo:
-        condition: service_healthy
-    ports:
-      - "8000:8000"
-    environment:
-      # Odoo connection settings
-      - ODOO_URL=http://odoo:8069
-      - ODOO_DB=${ODOO_DB:-odoo}
-      - ODOO_USERNAME=${ODOO_USERNAME:-admin}
-      - ODOO_PASSWORD=${ODOO_PASSWORD}
-      - ODOO_TIMEOUT=30
-      - ODOO_VERIFY_SSL=0
-      
-      # Database settings
-      - DB_HOST=${DB_HOST:-db}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_USER=${DB_USER:-odoo}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME:-odoo}
-      - PGPASSWORD=${PGPASSWORD}
-      
-      # API Keys
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      
-      # Constructed URI
-      - PG_URI=${PG_URI}
-      
-      # MCP settings
-      - DEBUG=1
-      - PYTHONUNBUFFERED=1
-      - MCP_TRANSPORT=streamable-http
-    volumes:
-      - mcp-logs:/app/logs
-    tty: true
-    stdin_open: true
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-
 volumes:
   odoo-web-data:
   odoo-db-data:
-  mcp-logs:
