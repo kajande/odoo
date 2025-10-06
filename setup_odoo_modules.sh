@@ -22,6 +22,7 @@ CORE_MODULES=(
 
 # Optional custom modules  
 CUSTOM_MODULES=(
+    "social_bot"
     "social_api"
     "fast_service"
 )
