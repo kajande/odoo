@@ -22,8 +22,14 @@ CORE_MODULES=(
 
 # Optional custom modules  
 CUSTOM_MODULES=(
-    "social_bot"
+    "odoo_api"
+    "agentic_api"
+    "wave_api"
+    "billing"
     "social_api"
+    "whatsapp_api"
+    "social_bot"
+    "dulayni_api"
     "fast_service"
 )
 
@@ -160,7 +166,19 @@ SELECT
         ELSE '❓'
     END as status
 FROM ir_module_module 
-WHERE name IN ('contacts', 'account', 'social_api', 'fast_service', 'setup_odoo')
+WHERE name IN ('setup_odoo',
+                'contacts', 
+                'account', 
+                'odoo_api', 
+                'agentic_api',
+                'wave_api',
+                'billing',
+                'social_api', 
+                'whatsapp_api',
+                'social_bot',
+                'dulayni_api',
+                'fast_service'
+            )
 ORDER BY name;
 EOF
 }
