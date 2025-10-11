@@ -22,8 +22,14 @@ CORE_MODULES=(
 
 # Optional custom modules  
 CUSTOM_MODULES=(
-    "social_bot"
+    "odoo_api"
+    "agentic_api"
+    "dulayni_api"
+    "whatsapp_api"
+    "wave_api"
+    "billing"
     "social_api"
+    "social_bot"
     "fast_service"
 )
 
