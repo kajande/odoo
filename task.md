@@ -1,0 +1,1 @@
+right now you have created `social_bot_extension.py` inside `social_api` module, but social_api should not know anything about bots so maybe you should have implemented that in `agentic_api` module instead.
