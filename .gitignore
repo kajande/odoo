@@ -15,6 +15,7 @@ workflows.txt
 .mcp.json
 remove_none_images.sh
 config/odoo.conf
+task.md
 .python-version
 config/config.json
 main.py

@@ -18,6 +18,7 @@ CORE_MODULES=(
     "contacts"
     "product"
     "account"
+    "mail"
 )
 
 # Optional custom modules  
@@ -28,8 +29,8 @@ CUSTOM_MODULES=(
     "whatsapp_api"
     "agentic_api"
     "dulayni_api"
-    "wave_api"
     "billing"
+    "wave_api"
     "fast_service"
 )
 
@@ -168,7 +169,8 @@ SELECT
 FROM ir_module_module 
 WHERE name IN ('setup_odoo',
                 'contacts', 
-                'account', 
+                'account',
+                'mail',
                 'odoo_api', 
                 'agentic_api',
                 'wave_api',
